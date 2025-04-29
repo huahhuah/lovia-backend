@@ -9,7 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(
+app.use(    
   pinoHttp({
     logger,
     serializers: {
@@ -21,6 +21,9 @@ app.use(
   })
 );
 app.use(express.static(path.join(__dirname, "public")));
+
+const userRoutes = require('./controllers/users');
+app.use('/api',userRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);
