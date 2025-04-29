@@ -1,6 +1,12 @@
 const { DataSource } = require("typeorm");
 const config = require("../config/index");
-const User = require("../entities/Users.js");
+const Users = require("../entities/Users.js");
+const Projects = require("../entities/Projects.js");
+const Categories = require("../entities/Categories.js");
+const Genders = require("../entities/Genders.js");
+const Roles = require("../entities/Roles.js");
+const Statuses = require("../entities/Statuses.js");
+const Project_plans = require("../entities/Project_plans.js");
 
 const dataSource = new DataSource({
   type: "postgres",
@@ -11,8 +17,8 @@ const dataSource = new DataSource({
   database: config.get("db.database"),
   synchronize: config.get("db.synchronize"),
   poolSize: 10,
-  entities: [User],
-  ssl: config.get("db.ssl"),
+  entities: [Users, Projects, Categories, Genders, Roles, Statuses, Project_plans],
+  ssl: config.get("db.ssl")
 });
 
 // 嘗試初始化資料庫連接
@@ -21,7 +27,7 @@ dataSource
   .then(() => {
     console.log("資料庫連接成功");
   })
-  .catch((err) => {
+  .catch(err => {
     console.error("資料庫連接失敗:", err.message);
     console.log(err);
   });
