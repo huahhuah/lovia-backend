@@ -1,51 +1,89 @@
+// 使用者資料表
 const { EntitySchema } = require("typeorm");
 
 module.exports = new EntitySchema({
   name: "Users",
-  tableName: "USERS", // PostgreSQL table name 建議用小寫（PostgreSQL 對大小寫敏感）
+  tableName: "USERS",
   columns: {
     id: {
       primary: true,
       type: "uuid",
-      generated: "uuid",
+      generated: "uuid"
     },
-    name: {
+    username: {
       type: "varchar",
       length: 50,
-      nullable: false,
+      nullable: false
     },
     account: {
       type: "varchar",
-      length: 320,
+      length: 255,
       nullable: false,
-      unique: true,
+      unique: true
     },
     phone: {
       type: "varchar",
       length: 20,
-      nullable: false,
+      nullable: false
     },
     hashed_password: {
       type: "varchar",
       length: 255,
-      nullable: false,
+      nullable: false
     },
     avatar_url: {
       type: "varchar",
       length: 2083,
-      nullable: true,
+      nullable: true
     },
     birthday: {
       type: "date",
-      nullable: true,
+      nullable: true
+    },
+    gender_id: {
+      type: "int",
+      nullable: false
     },
     created_at: {
       type: "timestamp",
-      default: () => "CURRENT_TIMESTAMP",
+      default: () => "CURRENT_TIMESTAMP"
     },
     last_login: {
       type: "timestamp",
-      nullable: true,
+      nullable: true
     },
+    role_id: {
+      type: "int",
+      nullable: false
+    },
+    status_id: {
+      type: "int",
+      nullable: false
+    }
   },
+  relations: {
+    gender: {
+      type: "many-to-one",
+      target: "Genders",
+      joinColumn: { name: "gender_id" },
+      inverseSide: "users"
+    },
+    role: {
+      type: "many-to-one",
+      target: "Roles",
+      joinColumn: { name: "role_id" },
+      inverseSide: "users"
+    },
+    status: {
+      type: "many-to-one",
+      target: "Statuses",
+      joinColumn: { name: "status_id" },
+      inverseSide: "users"
+    },
+    projects: {
+      type: "one-to-many",
+      target: "Projects",
+      inverseSide: "user"
+    }
+  }
 });
