@@ -7,6 +7,7 @@ const Genders = require("../entities/Genders.js");
 const Roles = require("../entities/Roles.js");
 const Statuses = require("../entities/Statuses.js");
 const Project_plans = require("../entities/Project_plans.js");
+const sslOption = config.get("db.ssl") ? { rejectUnauthorized: false } : false;
 
 const dataSource = new DataSource({
   type: "postgres",
@@ -18,7 +19,7 @@ const dataSource = new DataSource({
   synchronize: config.get("db.synchronize"),
   poolSize: 10,
   entities: [Users, Projects, Categories, Genders, Roles, Statuses, Project_plans],
-  ssl: config.get("db.ssl")
+  ssl: sslOption
 });
 
 // 嘗試初始化資料庫連接
