@@ -24,12 +24,13 @@ module.exports = new EntitySchema({
     phone: {
       type: "varchar",
       length: 20,
-      nullable: false
+      nullable: true
     },
     hashed_password: {
       type: "varchar",
       length: 255,
-      nullable: false
+      nullable: false,
+      select: false
     },
     avatar_url: {
       type: "varchar",
@@ -42,7 +43,7 @@ module.exports = new EntitySchema({
     },
     gender_id: {
       type: "int",
-      nullable: false
+      nullable: true
     },
     created_at: {
       type: "timestamp",
@@ -58,7 +59,8 @@ module.exports = new EntitySchema({
     },
     status_id: {
       type: "int",
-      nullable: false
+      nullable: false,
+      default: 1
     }
   },
   relations: {

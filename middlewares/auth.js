@@ -4,7 +4,7 @@ const PERMISSION_DENIED_STATUS_CODE = 401;
 const FailedMessageMap = {
   expired: "Token 已過期",
   invalid: "無效的 token",
-  missing: "請先登入",
+  missing: "請先登入"
 };
 
 function generateError(status, message) {
@@ -17,16 +17,10 @@ function formatVerifyError(jwtError) {
   let result;
   switch (jwtError.name) {
     case "TokenExpiredError":
-      result = generateError(
-        PERMISSION_DENIED_STATUS_CODE,
-        FailedMessageMap.expired
-      );
+      result = generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.expired);
       break;
     default:
-      result = generateError(
-        PERMISSION_DENIED_STATUS_CODE,
-        FailedMessageMap.invalid
-      );
+      result = generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.invalid);
       break;
   }
   return result;
@@ -55,9 +49,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
     typeof userRepository.findOneBy !== "function"
   ) {
     logger.error("[AuthV2] userRepository is required and must be a function.");
-    throw new Error(
-      "[AuthV2] userRepository is required and must be a function."
-    );
+    throw new Error("[AuthV2] userRepository is required and must be a function.");
   }
   return async (req, res, next) => {
     if (
@@ -67,18 +59,14 @@ module.exports = ({ secret, userRepository, logger = console }) => {
     ) {
       logger.warn("[AuthV2] Missing authorization header.");
       //請先登入
-      next(
-        generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.missing)
-      );
+      next(generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.missing));
       return;
     }
     const [, token] = req.headers.authorization.split(" ");
     if (!token) {
       logger.warn("[AuthV2] Missing token.");
       //404 請先登入
-      next(
-        generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.missing)
-      );
+      next(generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.missing));
       return;
     }
     try {
@@ -88,9 +76,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
       const user = await userRepository.findOneBy({ id: verifyResult.id });
       if (!user) {
         //無效的token
-        next(
-          generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.invalid)
-        );
+        next(generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.invalid));
         return;
       }
       //在 req 物件加入 user 欄位
