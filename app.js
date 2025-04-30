@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(
+app.use(    
   pinoHttp({
     logger,
     serializers: {
@@ -23,11 +23,13 @@ app.use(
 );
 app.use(express.static(path.join(__dirname, "public")));
 
+const { router: userRoute } = require('./controllers/users');
+app.use('/api',userRoute);
+
 app.get("/healthcheck", (req, res) => {
   res.status(200);
   res.send("OK");
 });
-app.use("/api/v1/users", usersRouter);
 
 //404
 app.use((req, res, next) => {
