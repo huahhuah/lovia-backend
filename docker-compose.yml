@@ -17,8 +17,7 @@ services:
     networks:
       - bootcamp_network
     healthcheck:
-      test:
-        ["CMD-SHELL", "sh -c 'pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}'"]
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}'"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -29,6 +28,10 @@ services:
       - .env
     ports:
       - "${PORT}:${PORT}"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
     networks:
       - bootcamp_network
     logging:
