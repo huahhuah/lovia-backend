@@ -1,19 +1,15 @@
 const jwt = require("jsonwebtoken");
+const config = require("../config/index");
 
-/**
- * create JSON Web Token
- * @param {Object} payload token content
- * @param {String} secret token secret
- * @param {Object} [option] same to npm package - jsonwebtoken
- * @returns {String}
- */
-module.exports = (payload, secret, option = {}) =>
+const jwtSecret = config.get("secret").jwtSecret;
+
+module.exports = (payload, options = {}) =>
   new Promise((resolve, reject) => {
-    jwt.sign(payload, secret, option, (err, token) => {
+    jwt.sign(payload, jwtSecret, options, (err, token) => {
       if (err) {
         reject(err);
-        return;
+      } else {
+        resolve(token);
       }
-      resolve(token);
     });
   });

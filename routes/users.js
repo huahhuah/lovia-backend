@@ -4,18 +4,15 @@ const config = require("../config/index");
 const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("Users");
 const users = require("../controllers/users");
+
 const auth = require("../middlewares/auth")({
   secret: config.get("secret").jwtSecret,
-  userRepository: dataSource.getRepository("User"),
-  logger,
+  userRepository: dataSource.getRepository("Users"),
+  logger
 });
 
 router.post("/signup", users.postSignup);
-router.post("/login", users.postLogin);
-router.get("/profile", auth, users.getProfile);
-router.get("/credit-package", auth, users.getCreditPackage);
-router.put("/profile", auth, users.putProfile);
-router.put("/password", auth, users.putPassword);
-router.get("/courses", auth, users.getCourseBooking);
+router.post("/signin", users.postLogin);
+router.post("/status", auth, users.postStatus);
 
 module.exports = router;
