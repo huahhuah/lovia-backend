@@ -45,5 +45,6 @@ module.exports = {
   isNotValidUrl,
   isNotValidGender,
   isTooLong,
-  isValidBirthday
+  isValidBirthday,
+  
 };

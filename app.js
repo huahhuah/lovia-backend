@@ -5,11 +5,20 @@ const pinoHttp = require("pino-http");
 
 const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
+const proposalsRouter = require("./routes/proposals");
+const { dataSource } = require("./db/data-source");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.use((req, res, next) => {
+  req.dataSource = dataSource;
+  next();
+});
+
+
 app.use(    
   pinoHttp({
     logger,
@@ -25,6 +34,9 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const { router: userRoute } = require('./controllers/users');
 app.use('/api',userRoute);
+
+// 加入提案路由
+app.use('/api', proposalsRouter);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

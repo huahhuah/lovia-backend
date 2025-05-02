@@ -7,6 +7,7 @@ const Genders = require("../entities/Genders.js");
 const Roles = require("../entities/Roles.js");
 const Statuses = require("../entities/Statuses.js");
 const Project_plans = require("../entities/Project_plans.js");
+const Proposal = require("../entities/proposal.js");
 const sslOption = config.get("db.ssl") ? { rejectUnauthorized: false } : false;
 
 const dataSource = new DataSource({
@@ -18,7 +19,7 @@ const dataSource = new DataSource({
   database: config.get("db.database"),
   synchronize: config.get("db.synchronize"),
   poolSize: 10,
-  entities: [Users, Projects, Categories, Genders, Roles, Statuses, Project_plans],
+  entities: [Users, Projects, Categories, Genders, Roles, Statuses, Project_plans, Proposal],
   ssl: sslOption
 });
 
