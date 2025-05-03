@@ -8,6 +8,7 @@ const jwtSecret = config.get("secret").jwtSecret;
 const { isUndefined, isNotValidString, isTooLong, isValidBirthday, isNotValidGender, isNotValidUrl } = require("../utils/validUtils");
 const bcrypt = require('bcrypt');
 const appError = require('../utils/appError');  
+const { getRepository } = require('typeorm');
 const auth = require('../middlewares/auth')({
   secret: jwtSecret,
   userRepository: dataSource.getRepository('Users'),
@@ -163,61 +164,55 @@ async function postStatus(req, res, next) {
     }
 }
 
-// 註冊與登入路由
-router.post('/v1/users/signup', postSignup);
-router.post('/v1/users/login', postLogin);
-
 // 修改會員資料
-router.patch('/v1/users/profile', auth, async(req, res, next) =>{
-    const {username, phone, avatar_url, birthday, gender} = req.body;
+async function patchProfile(req, res, next){
+  const{username, phone, avatar_url, birthday, gender} = req.body;
+  try{
+    if (!req.user || !req.user.id){
+      return next(appError(401, '未授權，Token無效'))
+        }
+    const cleanedAvatar = avatar_url ? avatar_url.trim() : null;
     if(isNotValidString(username) || isTooLong(username,50) || 
         isNotValidString(phone) || isTooLong(phone, 20) ||
-        (avatar_url && (isNotValidUrl(avatar_url) || isTooLong(avatar_url, 2083)))  ||
+        (cleanedAvatar && (isNotValidUrl(avatar_url) || isTooLong(avatar_url, 2083)))  ||
         (birthday && !isValidBirthday(birthday)) ||
         (gender && isNotValidGender(gender))){
-        res.status(400).json({
-            status: false,
-            message: '格式錯誤'
-        });
-    }
-    try {
-        const user_id = req.user.user_id;
-        const userRepository = dataSource.getRepository('Users');
-        const user =  await userRepository.findOne({where:{user_id}});
-        if(!user){
-            res.status(401).json({
-                status: false,
-                message: '未授權，Token 無效'
-            });
+          return next(appError(400, '格式錯誤'));
         }
-        user.username = username;
-        user.phone = phone;
-        user.avatar_url = avatar_url || user.avatar_url; 
-        user.birthday = birthday || user.birthday;
-        user.gender = gender || user.gender;
-        await userRepository.save(user);
-        res.status(200).json({
-            status: true,
-            message: '修改成功',
-            data: {
-                user: {
-                  userId: user.userId,
-                  username: user.username,
-                  phone: user.phone,
-                  avatar_url: user.avatar_url,
-                  birthday: user.birthday,
-                  gender: user.gender,
-                },
-            },
-        });
-    } catch(error){
-        next(error);
+    const user_id = req.user.id;
+    const userRepository = dataSource.getRepository('Users');
+    const user = await userRepository.findOne({where:{id:user_id}})
+    if (!user) {
+      return next(appError(401, '未授權，Token無效'));
     }
-})
+      user.username = username;
+      user.phone = phone;
+      user.avatar_url = avatar_url || user.avatar_url; 
+      user.birthday = birthday || user.birthday;
+      user.gender = gender || user.gender;
+      await userRepository.save(user);
+      res.status(200).json({
+        status: true,
+        message: '修改成功',
+        data: {
+          user: {
+            userId: user.userId,
+            username: user.username,
+            phone: user.phone,
+            avatar_url: user.avatar_url,
+            birthday: user.birthday,
+            gender: user.gender,
+          },
+        },
+      });
+  }catch(error){
+    next(error);
+  }
+}
 
 module.exports = {
   postSignup,
   postLogin,
   postStatus,
-  router
+  patchProfile
 }
