@@ -5,6 +5,7 @@ const pinoHttp = require("pino-http");
 
 const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
+const projectRouter = require("./routes/projects");
 
 const app = express();
 app.use(cors());
@@ -23,7 +24,8 @@ app.use(
 );
 app.use(express.static(path.join(__dirname, "public")));
 
-app.use('/api/v1/users', usersRouter);
+app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/projects", projectRouter);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);
