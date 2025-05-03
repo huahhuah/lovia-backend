@@ -23,8 +23,7 @@ app.use(
 );
 app.use(express.static(path.join(__dirname, "public")));
 
-const { router: userRoute } = require('./controllers/users');
-app.use('/api',userRoute);
+app.use('/api/v1/users', usersRouter);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

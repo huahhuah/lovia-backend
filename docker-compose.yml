@@ -10,6 +10,7 @@ services:
       - POSTGRES_DB=${DB_DATABASE}
     volumes:
       - pgData:/var/lib/postgresql/data
+      - ./db/init-scripts:/docker-entrypoint-initdb.d 
     ports:
       - 5432:5432
     deploy:
@@ -31,6 +32,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+      - .env:/app/.env
     command: npm run dev
     networks:
       - bootcamp_network
