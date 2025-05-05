@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "docker compose --env-file .env up -d --build",
+    "start": "docker compose --env-file .env up -d --build",     
+    "render-start": "node ./bin/www",                            
     "restart": "docker compose --env-file .env up --force-recreate --build -d",
     "stop": "docker compose --env-file .env stop",
     "clean": "docker compose --env-file .env down -v",

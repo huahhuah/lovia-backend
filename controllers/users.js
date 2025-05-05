@@ -146,7 +146,7 @@ async function postStatus(req, res, next) {
         return next(appError(401, "請先登入"));
       }
   
-      const { id, account, username, role } = req.user;
+      const { id, account, username, avatar, role } = req.user;
   
       res.status(200).json({
         status: true,
@@ -154,6 +154,7 @@ async function postStatus(req, res, next) {
           id,
           account,
           username,
+          avatar,
           role
         },
         message: "使用者目前已登入"
@@ -185,7 +186,7 @@ async function patchProfile(req, res, next){
     if (!user) {
       return next(appError(401, '未授權，Token無效'));
     }
-      user.username = username;
+      user.username = username ;
       user.phone = phone;
       user.avatar_url = avatar_url || user.avatar_url; 
       user.birthday = birthday || user.birthday;
