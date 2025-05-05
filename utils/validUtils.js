@@ -37,6 +37,14 @@ function isValidBirthday(value){
   return regex.test(value);
 }
 
+function isValidImage(url) {
+  return typeof url === "string" && (url.endsWith(".jpg") || url.endsWith(".png"));
+}
+
+function isValidDate(dateStr) {
+  return !isNaN(Date.parse(dateStr));
+}
+
 module.exports = {
   isNotValidInteger,
   isNotValidString,
@@ -45,5 +53,8 @@ module.exports = {
   isNotValidUrl,
   isNotValidGender,
   isTooLong,
-  isValidBirthday
+  isValidBirthday,
+  isValidImage,
+  isValidDate,
+
 };

@@ -2,22 +2,25 @@
 const { DataSource } = require("typeorm");
 const config = require("../config/index");
 
-const Users = require("../entities/Users");
-const Projects = require("../entities/Projects");
-const Categories = require("../entities/Categories");
-const Genders = require("../entities/Genders");
-const Roles = require("../entities/Roles");
-const Statuses = require("../entities/Statuses");
-const Project_plans = require("../entities/Project_plans");
+const Users = require("../entities/Users.js");
+const Projects = require("../entities/Projects.js");
+const Categories = require("../entities/Categories.js");
+const Genders = require("../entities/Genders.js");
+const Roles = require("../entities/Roles.js");
+const Statuses = require("../entities/Statuses.js");
+const Project_plans = require("../entities/Project_plans.js");
+const CreateProjects = require("../entities/CreateProjects.js");
 
 const isRender = process.env.DATABASE_URL?.includes("render.com");
+const sslOption = isRender || config.get("db.ssl") ? { rejectUnauthorized: false } : false;
 
 const dataSource = new DataSource({
   type: "postgres",
-  url: process.env.DATABASE_URL, // ✅ 改成讀 DATABASE_URL
+  url: process.env.DATABASE_URL,
   synchronize: config.get("db.synchronize"),
-  ssl: isRender ? { rejectUnauthorized: false } : false, // ✅ Render 才啟用 SSL
-  entities: [Users, Projects, Categories, Genders, Roles, Statuses, Project_plans]
+  poolSize: 10,
+  ssl: sslOption,
+  entities: [Users, Projects, Categories, Genders, Roles, Statuses, Project_plans, CreateProjects]
 });
 
 module.exports = { dataSource };
