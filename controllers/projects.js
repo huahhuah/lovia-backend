@@ -124,7 +124,7 @@ async function getProject(req, res, next){
             full_content: project.full_content,
             project_team: project.project_team,
             faq: project.faq || [], 
-            plans
+            project_plans:plans
         };
         res.status(200).json({
             status: true,
