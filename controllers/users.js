@@ -146,6 +146,7 @@ async function postLogin(req, res, next) {
   }
 }
 
+//驗證登入狀態
 async function postStatus(req, res, next) {
   try {
     // 檢查 auth middleware 是否有把 user 加到 req
@@ -172,6 +173,7 @@ async function postStatus(req, res, next) {
   }
 }
 
+//查詢會員資料
 async function getProfile(req, res, next) {
   try {
     //檢查是否有登入
@@ -181,10 +183,10 @@ async function getProfile(req, res, next) {
     //從 DB 查詢完整的會員資料
     const userRepository = dataSource.getRepository("Users");
     const user = await userRepository.findOne({
-      where: {
-        id: req.user.id
-      }
+      where: { id: req.user.id },
+      relations: ["gender"]
     });
+
     if (!user) {
       return next(appError(404, "查無此會員"));
     }
@@ -223,22 +225,37 @@ async function patchProfile(req, res, next) {
       isTooLong(phone, 20) ||
       (cleanedAvatar && (isNotValidUrl(avatar_url) || isTooLong(avatar_url, 2083))) ||
       (birthday && !isValidBirthday(birthday)) ||
-      (gender && isNotValidGender(gender))
+      (gender && ![1, 2, 3, 4].includes(Number(gender)))
     ) {
       return next(appError(400, "格式錯誤"));
     }
     const user_id = req.user.id;
     const userRepository = dataSource.getRepository("Users");
-    const user = await userRepository.findOne({ where: { id: user_id } });
+    const genderRepository = dataSource.getRepository("Genders");
+
+    const user = await userRepository.findOne({
+      where: { id: req.user.id },
+      relations: ["gender"]
+    });
     if (!user) {
       return next(appError(401, "未授權，Token無效"));
+    }
+    // 驗證 gender id 是否正確
+    let genderEntity = null;
+    if (gender) {
+      genderEntity = await genderRepository.findOne({ where: { id: gender } });
+      if (!genderEntity) {
+        return next(appError(400, "無效的性別選項"));
+      }
     }
     user.username = username;
     user.phone = phone;
     user.avatar_url = avatar_url || user.avatar_url;
     user.birthday = birthday || user.birthday;
-    user.gender = gender || user.gender;
+    user.gender = genderEntity;
+
     await userRepository.save(user);
+
     res.status(200).json({
       status: true,
       message: "修改成功",
