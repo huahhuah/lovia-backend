@@ -136,7 +136,14 @@ async function postLogin(req, res, next) {
       data: {
         token,
         users: {
-          username: existingUser.username
+          id: existingUser.id,
+          account: existingUser.account,
+          username: existingUser.username,
+          avatar_url: existingUser.avatar_url,
+          role: {
+            id: existingUser.role.id,
+            role_type: existingUser.role.role_type
+          }
         }
       }
     });
