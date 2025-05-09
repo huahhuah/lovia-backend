@@ -8,7 +8,6 @@ const jwt = require("jsonwebtoken");
 async function createProject(req, res, next) {
   try {
     const projectRepo = dataSource.getRepository("Projects");
-    const planRepo = dataSource.getRepository("ProjectPlans");
     const userRepo = dataSource.getRepository("Users");
     const categoryRepo = dataSource.getRepository("Categories");
 
@@ -22,16 +21,10 @@ async function createProject(req, res, next) {
       cover,
       full_content,
       project_team,
-      faq,
-      plan_name,
-      amount,
-      quantity,
-      feedback,
-      feedback_img,
-      delivery_date
+      faq
     } = req.body;
 
-    //  檢查必要欄位
+    // 只檢查建立專案需要的欄位
     const missingFields = checkMissingFields(req.body);
     if (missingFields.length > 0) {
       return res.status(400).json({
@@ -40,13 +33,13 @@ async function createProject(req, res, next) {
       });
     }
 
-    // 從 JWT 取得 user_id
+    // 取得 JWT token
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       return res.status(401).json({ status: false, message: "未提供有效的 token" });
     }
 
-    // 解碼 JWT
+    // 解碼 token 取得 user_id
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -54,21 +47,18 @@ async function createProject(req, res, next) {
       return res.status(401).json({ status: false, message: "無效的 token" });
     }
 
-    const user_id = decoded.id; // 從 JWT 解碼出來的 user_id
-
-    //  驗證 user 是否存在
+    const user_id = decoded.id;
     const user = await userRepo.findOneBy({ id: user_id });
     if (!user) {
       return next(appError(400, "找不到對應的使用者", next));
     }
 
-    // 驗證 category 是否存在
     const existingCategory = await categoryRepo.findOneBy({ id: category_id });
     if (!existingCategory) {
       return next(appError(400, "無效的 category", next));
     }
 
-    // 建立 Project
+    // 建立專案
     const newProject = projectRepo.create({
       title,
       summary,
@@ -84,22 +74,9 @@ async function createProject(req, res, next) {
     });
     const savedProject = await projectRepo.save(newProject);
 
-    // ✅ 建立 ProjectPlan 並關聯 Project
-    const newPlan = planRepo.create({
-      plan_name,
-      amount,
-      quantity,
-      feedback,
-      feedback_img,
-      delivery_date,
-      project: savedProject
-    });
-    await planRepo.save(newPlan);
-
-    // 成功回傳
     res.status(200).json({
       status: true,
-      message: "新增成功，請填寫募資方案",
+      message: "專案建立成功，請繼續填寫募資方案",
       data: {
         project_id: savedProject.id
       }
@@ -110,7 +87,7 @@ async function createProject(req, res, next) {
   }
 }
 
-// 檢查缺少欄位
+// 只檢查專案欄位
 function checkMissingFields(body) {
   const requiredFields = [
     "title",
@@ -121,16 +98,65 @@ function checkMissingFields(body) {
     "end_time",
     "cover",
     "full_content",
-    "project_team",
-    "plan_name",
-    "amount",
-    "quantity",
-    "feedback",
-    "feedback_img",
-    "delivery_date"
+    "project_team"
   ];
   return requiredFields.filter(field => !body[field]);
 }
+
+async function project_plan(req, res, next) {
+  try {
+    const planRepo = dataSource.getRepository("ProjectPlans");
+    const projectRepo = dataSource.getRepository("Projects");
+
+    const projectId = parseInt(req.params.projectId, 10);
+    const {
+      plan_name,
+      amount,
+      quantity,
+      feedback,
+      feedback_img,
+      delivery_date
+    } = req.body;
+
+    // 檢查必要欄位
+    if (!plan_name || !amount || !quantity || !feedback || !delivery_date) {
+      return res.status(400).json({
+        status: false,
+        message: "缺少必要欄位"
+      });
+    }
+
+    const project = await projectRepo.findOneBy({ id: projectId });
+    if (!project) {
+      return res.status(404).json({
+        status: false,
+        message: "找不到該專案"
+      });
+    }
+
+    const newPlan = planRepo.create({
+      plan_name,
+      amount: Number(amount),
+      quantity: Number(quantity),
+      feedback,
+      feedback_img,
+      delivery_date: new Date(delivery_date),
+      project
+    });
+
+    const savedPlan = await planRepo.save(newPlan);
+
+    res.status(200).json({
+      status: true,
+      message: "募資方案新增成功",
+      data: savedPlan
+    });
+  } catch (err) {
+    logger.error("新增募資方案失敗", err);
+    next(appError(400, err.message || "新增募資方案失敗", next));
+  }
+}
+
 
 async function getProject(req, res, next) {
   const projectId = parseInt(req.params.project_id, 10);
@@ -177,5 +203,6 @@ async function getProject(req, res, next) {
 
 module.exports = {
   getProject,
-  createProject
+  createProject,
+  project_plan
 };
