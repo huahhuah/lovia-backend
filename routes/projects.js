@@ -6,8 +6,8 @@ const logger = require("../utils/logger");
 const projects = require("../controllers/projects");
 const auth = require("../middlewares/auth");
 
-
 router.get("/:project_id", projects.getProject);
 router.post("/create", projects.createProject);
+router.post("/:id/plans", projects.createProjectPlan);
 
 module.exports = router;
