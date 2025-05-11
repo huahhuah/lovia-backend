@@ -108,7 +108,7 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
-      select: ["id", "username", "hashed_password", "role"],
+      select: ["id", "username", "hashed_password", "role"], 
       where: { account },
       relations: ["role"]
     });
@@ -124,7 +124,7 @@ async function postLogin(req, res, next) {
 
     const token = await generateJWT(
       {
-        id: existingUser.id,
+        id: existingUser.id, 
         role_id: existingUser.role.id,
         role: existingUser.role.role
       },
@@ -136,7 +136,7 @@ async function postLogin(req, res, next) {
       data: {
         token,
         users: {
-          id: existingUser.id,
+          id: existingUser.id, 
           account: existingUser.account,
           username: existingUser.username,
           avatar_url: existingUser.avatar_url,

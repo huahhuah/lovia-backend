@@ -9,5 +9,6 @@ const auth = require("../middlewares/auth");
 router.get("/:project_id", projects.getProject);
 router.post("/create", projects.createProject);
 router.post("/:id/plans", projects.createProjectPlan);
+router.put("/:project_id", projects.updateProject);
 
 module.exports = router;

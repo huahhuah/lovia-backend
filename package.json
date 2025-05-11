@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "docker compose --env-file .env up -d --build",     
-    "render-start": "node ./bin/www",                            
+    "start": "docker compose --env-file .env up -d --build",
+    "render-start": "node ./bin/www",
     "restart": "docker compose --env-file .env up --force-recreate --build -d",
     "stop": "docker compose --env-file .env stop",
     "clean": "docker compose --env-file .env down -v",
@@ -36,7 +36,7 @@
     "pino-http": "^10.4.0",
     "pino-pretty": "^13.0.0",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.22"
+    "typeorm": "^0.3.23"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
