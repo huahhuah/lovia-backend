@@ -2,10 +2,12 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const pinoHttp = require("pino-http");
+const env = require('dotenv').config();
 
 const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
 const projectRouter = require("./routes/projects");
+const uploadRouter = require("./routes/upload");
 
 const app = express();
 app.use(cors());
@@ -26,6 +28,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
+app.use("/api/v1/uploads", uploadRouter);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);
