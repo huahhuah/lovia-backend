@@ -176,8 +176,81 @@ async function getProject(req, res, next) {
   }
 }
 
+//  更新專案或方案
+async function updateProject(req, res, next) {
+  try{
+    const projectId = parseInt(req.params.project_id, 10);
+    const user = req.user;
+    const projectRepo = dataSource.getRepository("Projects");
+    const planRepo = dataSource.getRepository("ProjectPlans");
+
+    const project = await projectRepo.findOne({
+      where : {id: projectId, user_id: user.id},
+      relations: ["user", "category"]
+    });
+    if (!project){
+      return next(appError(400, "找不到提案"));
+    }
+    if (project.user.id !== user.id){
+      return next(appError(403, "你沒有修改此提案的權限"));
+    }
+
+    const {
+      title,
+      summary,
+      category_id,
+      total_amount,
+      start_time,
+      end_time,
+      cover,
+      full_content,
+      project_team,
+      faq,
+      plans
+    } = req.body
+
+    // 更新有變更的欄位
+    if (title !== undefined) project.title = title;
+    if (summary !== undefined) project.summary = summary;
+    if (total_amount !== undefined) project.total_amount = Number(total_amount);
+    if (start_time !== undefined) project.start_time = start_time;
+    if (end_time !== undefined) project.end_time = end_time;
+    if (cover !== undefined) project.cover = cover;
+    if (full_content !== undefined) project.full_content = full_content;
+    if (project_team !== undefined) project.project_team = project_team;
+    if (faq !== undefined) project.faq = faq;
+
+    if (Array.isArray(req.body.plans)){
+      // 刪除原來plan陣列
+      await planRepo.delete({project:{id:projectId}});
+      // 建立新的plan陣列
+      const newPlans = req.body.plans.map(plan =>{
+        return planRepo.create({
+          plan_name: plan.plan_name,
+          amount: Number(plan.amount),
+          quantity: plan.quantity ? Number(plan.quantity):0,
+          feedback: plan.feedback,
+          feedback_img: plan.feedback_img,
+          delivery_date: plan.delivery_date,
+          project
+        });
+      });
+      await planRepo.save(newPlans);
+    }
+    const updateProject = await projectRepo.save(project);
+    res.status(200).json({
+      status: true,
+      data: { project_id: updateProject.id}
+    })
+  } catch (error) {
+    logger.error("更新失敗", error);
+    next(error);
+  }
+}
+
 module.exports = {
   createProject,
   createProjectPlan,
-  getProject
+  getProject,
+  updateProject
 };
