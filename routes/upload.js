@@ -3,7 +3,7 @@ const multer = require('multer');
 const uploadImg = require('../services/uploadImg');
 const appError = require('../utils/appError')
 const router = express.Router();
-const logger = require ('../utils/logger');
+const logger = require ('../utils/logger')("UploadRoute");
 
 const upload = multer({
     storage: multer.memoryStorage(),
