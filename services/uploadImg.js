@@ -31,7 +31,11 @@ async function uploadImg(imageBuffer, apiKey) {
         // 返回上傳的圖片資料
         return res.data.data;
     } catch (error) {
-        throw new Error(message);
+        if(error.response){
+            throw appError(500, `ImgBB API問題 ${error.response.data.message}`)
+        }else{
+            throw appError(400, error.message || '圖片上傳失敗')
+        }
     }
 }
 module.exports = uploadImg;
