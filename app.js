@@ -47,7 +47,14 @@ app.use((req, res, next) => {
 // eslint-disable-next-line no-unused-vars
 //放在所有路由之後,統一處理錯誤
 app.use((err, req, res, next) => {
-  req.log.error(err);
+  if (!err) {  // 【修改行】
+    err = new Error("未知錯誤");  // 【修改行】
+  }
+  if (req.log && typeof req.log.error === 'function') {
+    req.log.error(err.message || 'No error message');
+  } else {
+    console.error('Unhandled error:', err.message || err);
+  }
   const statusCode = err.status || 500; // 400, 409, 500 ...
   res.status(statusCode).json({
     status: statusCode === 500 ? "error" : "failed",

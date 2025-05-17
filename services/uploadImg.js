@@ -7,7 +7,6 @@ const appError = require('../utils/appError');
 
 async function uploadImg(imageBuffer, apiKey) {
     try {
-        console.log('🧪 Uploading image with apiKey:', apiKey); //檢查確認
         // 使用image-type
         const type = imageType(imageBuffer);
         if (!type || (type.mime !== 'image/jpeg' && type.mime !== 'image/png')) {

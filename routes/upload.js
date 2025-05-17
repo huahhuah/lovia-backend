@@ -19,7 +19,6 @@ router.post('/image', upload.single('file'), async (req, res, next) =>{
         if (!req.file?.buffer){
             return next(appError(400, '未上傳檔案'));
         }
-        console.log(req.file); // 確認你有拿到檔案
         const result = await uploadImg(req.file.buffer, IMGBB_API_KEY);
         res.json({
             status: 'success',
