@@ -1,16 +1,16 @@
-const express = require('express');
-const multer = require('multer');
-const uploadImg = require('../services/uploadImg');
-const appError = require('../utils/appError')
+const express = require("express");
+const multer = require("multer");
+const uploadImg = require("../services/uploadImg");
+const appError = require("../utils/appError");
 const router = express.Router();
-const logger = require ('../utils/logger')("UploadRoute");
+const logger = require("../utils/logger")("UploadRoute");
 
 const upload = multer({
-    storage: multer.memoryStorage(),
-    // 限制上傳檔案最大為2MB
-    limits:{
-        fileSize: 2*1024*1024
-    }
+  storage: multer.memoryStorage(),
+  // 限制上傳檔案最大為2MB
+  limits: {
+    fileSize: 2 * 1024 * 1024
+  }
 });
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
 
@@ -34,7 +34,10 @@ router.post('/image', upload.single('file'), async (req, res, next) =>{
             return next(appError(400, '檔案大小不能超過 2MB'));
         }
         next(error);
+
     }
+    next(error);
+  }
 });
 
 module.exports = router;

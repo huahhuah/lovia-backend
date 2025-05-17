@@ -1,0 +1,16 @@
+name: Keep Render App Awake
+
+on:
+  workflow_dispatch: # 👉 可手動執行一次，幫你確認沒錯
+  schedule:
+    - cron: "*/10 1-16 * * *" # 台灣 9:00~23:59（UTC+8 → UTC 1~16）
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Render backend and show HTTP status
+        run: |
+          echo "Calling https://little-chapter-backend.onrender.com/ at $(date -u)"
+          status=$(curl -s -o /dev/null -w "%{http_code}" https://little-chapter-backend.onrender.com/)
+          echo "HTTP Status: $status"

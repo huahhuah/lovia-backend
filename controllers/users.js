@@ -55,6 +55,12 @@ async function postSignup(req, res, next) {
       return next(appError(409, "Email 已被使用"));
     }
 
+    //檢查username是否超過50個字元
+    if (isTooLong(username, 50)) {
+      logger.warn("建立使用者錯誤: 使用者名稱超過 50 個字元");
+      return next(appError(400, "使用者名稱長度不能超過 50 個字元"));
+    }
+
     // 加密密碼
     const salt = await bcrypt.genSalt(10);
     const hashPassword = await bcrypt.hash(password, salt);
@@ -73,7 +79,7 @@ async function postSignup(req, res, next) {
 
     // 回應成功
     res.status(201).json({
-      status: "true",
+      status: true,
       message: "註冊成功",
       data: {
         user: {
@@ -108,7 +114,7 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
-      select: ["id", "username", "hashed_password", "role"], 
+      select: ["id", "username", "hashed_password", "role"],
       where: { account },
       relations: ["role"]
     });
@@ -124,7 +130,7 @@ async function postLogin(req, res, next) {
 
     const token = await generateJWT(
       {
-        id: existingUser.id, 
+        id: existingUser.id,
         role_id: existingUser.role.id,
         role: existingUser.role.role
       },
@@ -132,11 +138,11 @@ async function postLogin(req, res, next) {
     );
 
     res.status(200).json({
-      status: "true",
+      status: true,
       data: {
         token,
         users: {
-          id: existingUser.id, 
+          id: existingUser.id,
           account: existingUser.account,
           username: existingUser.username,
           avatar_url: existingUser.avatar_url,
