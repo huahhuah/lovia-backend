@@ -9,7 +9,7 @@ const {
   isUndefined,
   isNotValidString,
   isTooLong,
-  isValidBirthday,
+  isValidDate,
   isNotValidGender,
   isNotValidUrl
 } = require("../utils/validUtils");
@@ -288,10 +288,90 @@ async function patchProfile(req, res, next) {
   }
 }
 
+// 新增進度
+async function postProgress(req, res, next){
+  const {project_id} = req.params;
+  const {title, content, date, fund_usages=[]} = req.body;
+  try {
+    if (!req.user || !req.user.id){
+      return next(appError(401, '未授權，Token無效'));
+    }
+    for (const detail of fund_usages){
+      const {recipient, usage, amount, status} =detail;
+      if(
+        isUndefined(recipient) ||
+        isNotValidString(recipient) ||
+        isUndefined(usage) ||
+        isNotValidString(usage) ||
+        isNaN(amount) ||
+        amount <= 0 ||
+        isUndefined(status) ||
+        isNotValidString(status)
+      ){
+        return next(appError(400, '明細資料格式有誤'));
+      }
+    }
+    if (
+      isUndefined(title) || 
+      isNotValidString(title) ||
+      isUndefined(content) ||
+      !isValidDate(date)
+    ){
+      return next(appError(400, '格式錯誤'));
+    }
+    try{
+      const progressRepo = dataSource.getRepository("ProjectProgresses");
+      const newProgress = await progressRepo.save({
+        project_id,
+        title,
+        content,
+        date,
+      });
+
+      // 處理 fund_usages
+      const statusRepo = dataSource.getRepository("FundUsageStatuses");
+      const fundUsageEntities = [];
+      for (const detail of fund_usages) {
+        const statusCode = (detail.status || '').trim();
+        const statusRecord = await statusRepo.findOne({
+          where: { code: statusCode } 
+        });
+
+      const usageEntity = fundUsageRepo.create({
+        progress_id: newProgress.id,
+        recipient: detail.recipient,
+        usage: detail.usage,
+        amount: detail.amount,
+        status_id: statusRecord.id, 
+      });
+      fundUsageEntities.push(usageEntity);
+      }
+      await fundUsageRepo.save(fundUsageEntities);
+      res.status(200).json({
+        status: true,
+        data: {
+          id: newProgress.id,
+          title: newProgress.title,
+          content: newProgress.content,
+          date: newProgress.date,
+          fund_usages: fundUsageEntities,
+        },
+      });
+  } catch (error) {
+    logger.error('新增進度資料失敗', error);
+    next(error);
+  }
+  } catch (error) {
+    logger.error('新增資料失敗',error);
+    next(error);
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
   postStatus,
   getProfile,
-  patchProfile
+  patchProfile,
+  postProgress
 };

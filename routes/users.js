@@ -16,5 +16,6 @@ router.post("/signin", users.postLogin);
 router.post("/status", auth, users.postStatus);
 router.get("/profile", auth, users.getProfile);
 router.patch("/profile", auth, users.patchProfile);
+router.post("/projects/:project_id/progress", users.postProgress);
 
 module.exports = router;
