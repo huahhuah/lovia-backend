@@ -15,24 +15,24 @@ function isNotValidUuid(value) {
   return !uuidRegex.test(value);
 }
 
-function isNotValidUrl(value){
-  try{
+function isNotValidUrl(value) {
+  try {
     new URL(value);
     return false;
-  } catch (_){
+  } catch (_) {
     return true;
   }
 }
 
-function isNotValidGender(value){
-  return !['male','female','other'].includes(value);
+function isNotValidGender(value) {
+  return !["male", "female", "other"].includes(value);
 }
 
-function isTooLong(value, maxLength){
-  return typeof value !== 'string' || value.length >maxLength;
+function isTooLong(str, maxLength) {
+  return typeof str === "string" && str.length > maxLength;
 }
 
-function isValidBirthday(value){
+function isValidBirthday(value) {
   const regex = /^\d{4}-\d{2}-\d{2}$/;
   return regex.test(value);
 }
@@ -55,6 +55,5 @@ module.exports = {
   isTooLong,
   isValidBirthday,
   isValidImage,
-  isValidDate,
-
+  isValidDate
 };

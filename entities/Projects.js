@@ -32,6 +32,12 @@ module.exports = new EntitySchema({
       type: "int",
       nullable: false
     },
+
+    amount: {
+      type: "int",
+      nullable: false,
+      default: 0
+    },
     start_time: {
       type: "date",
       nullable: false
@@ -56,6 +62,19 @@ module.exports = new EntitySchema({
     faq: {
       type: "text",
       nullable: true
+    },
+    project_type: {
+      type: "varchar",
+      length: 20,
+      default: "募資中"
+    },
+    is_finished: {
+      type: "boolean",
+      default: false
+    },
+    created_at: {
+      type: "timestamp",
+      default: () => "CURRENT_TIMESTAMP"
     }
   },
   relations: {
