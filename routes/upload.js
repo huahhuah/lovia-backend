@@ -38,6 +38,6 @@ router.post('/image', upload.single('file'), async (req, res, next) =>{
     }
     next(error);
   }
-});
+);
 
 module.exports = router;
