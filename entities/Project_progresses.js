@@ -36,12 +36,12 @@ module.exports = new EntitySchema({
             type: "many-to-one",
             target: "Projects",
             joinColumn: {name: "project_id"},
-            invesrseSide: "progresses"
+            inverseSide: "progresses"
         },
         fundUsages: {
             type: "one-to-many",
             target: "FundUsages",
-            invesrseSide: "progress"
+            inverseSide: "progress"
         }
     }
 });

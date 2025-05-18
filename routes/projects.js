@@ -18,5 +18,6 @@ router.get("/:projectId/plans", projects.getProjectPlans);
 router.get("/:projectId/overview", projects.getProjectOverview);
 router.get("/:project_id", projects.getProject);
 router.put("/:project_id", auth, projects.updateProject);
+router.get("/:project_id/progresses", projects.getProgress);
 
 module.exports = router;
