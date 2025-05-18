@@ -267,6 +267,7 @@ async function updateProject(req, res, next) {
 
 // 查詢所有專案（探索用：支援 filter、分類、分頁、排序、格式化）
 const { Between, Not, IsNull } = require("typeorm");
+const Fund_usages = require("../entities/Fund_usages");
 
 async function getAllProjects(req, res, next) {
   try {
@@ -540,6 +541,50 @@ async function updateExpiredProjects() {
   }
 }
 
+// 取得進度
+async function getProgress(req, res, next){
+    try {
+      const { project_id } = req.params;
+      if (!project_id){
+        return next(appError(400,'請求錯誤'));
+      }
+      const progressRepository = dataSource.getRepository("ProjectProgresses");
+      const progresses = await progressRepository.find({
+        where: {project_id},
+        order: {date: "DESC"},
+        relations:{
+          fundUsages:{
+            status: true
+          }
+        }
+      });
+
+      const result = progresses.map(progress => {
+        const allUsage = (progress.fundUsages || []).map(usage =>({
+        recipient: usage.recipient,
+        usage: usage.usage,
+        amount: usage.amount,
+        status: usage.status?.code || null
+      }));
+        return {
+          id: progress.id,
+          title: progress.title,
+          date: progress.date,
+          content: progress.content,
+          fund_usages: allUsage
+        }
+      });
+      res.status(200).json({
+        status: true,
+        message: '成功取得進度分享',
+        data: result
+      });
+    } catch (error){
+      logger.error('取得進度資料失敗', error);
+      next(error);
+    }
+}
+
 module.exports = {
   createProject,
   createProjectPlan,
@@ -549,5 +594,6 @@ module.exports = {
   getAllCategories,
   getProjectOverview,
   getProjectPlans,
-  updateExpiredProjects
+  updateExpiredProjects,
+  getProgress
 };
