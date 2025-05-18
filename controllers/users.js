@@ -321,6 +321,7 @@ async function postProgress(req, res, next){
     }
     try{
       const progressRepo = dataSource.getRepository("ProjectProgresses");
+      const fundUsageRepo = dataSource.getRepository("FundUsages");
       const newProgress = await progressRepo.save({
         project_id,
         title,
