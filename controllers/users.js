@@ -368,11 +368,75 @@ async function postProgress(req, res, next){
   }
 }
 
+//修改密碼
+async function putChangePassword(req, res, next) {
+  try {
+    const userIdFromToken = req.user?.id;
+    const userIdFromParams = req.params.id; 
+    const { currentPassword, newPassword, newPasswordConfirm } = req.body;
+
+    if (userIdFromToken !== userIdFromParams) {
+      return next(appError(403, "目前密碼驗證失敗"));
+    }
+
+    if (
+      isUndefined(currentPassword) ||
+      isNotValidString(currentPassword) ||
+      isUndefined(newPassword) ||
+      isNotValidString(newPassword) ||
+      isUndefined(newPasswordConfirm) ||
+      isNotValidString(newPasswordConfirm)
+    ) {
+      return next(appError(400, "請正確填寫目前密碼與新密碼"));
+    }
+
+    
+    if (newPassword !== newPasswordConfirm) {
+      return next(appError(400, "新密碼與確認密碼不一致"));
+    }
+
+    if (!passwordPattern.test(newPassword)) {
+      return next(appError(400, "新密碼格式錯誤，需要包含英文數字大小寫，最短8個字，最長16個字"));
+    }
+
+    const userRepository = dataSource.getRepository("Users");
+    const user = await userRepository.findOne({
+      where: { id: userIdFromToken },
+      select: ["id", "hashed_password"]
+    });
+
+    if (!user) {
+      return next(appError(404, "找不到使用者"));
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.hashed_password);
+    if (!isMatch) {
+      return next(appError(401, "目前密碼錯誤"));
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.hashed_password = await bcrypt.hash(newPassword, salt);
+
+    await userRepository.save(user);
+    logger.info(`使用者 ${userIdFromToken} 密碼已修改`);
+
+    res.status(200).json({
+      status: true,
+      message: "密碼修改成功"
+    });
+  } catch (error) {
+    logger.error("修改密碼錯誤", error);
+    next(error);
+  }
+}
+
+
 module.exports = {
   postSignup,
   postLogin,
   postStatus,
   getProfile,
   patchProfile,
-  postProgress
+  postProgress,
+  putChangePassword
 };
