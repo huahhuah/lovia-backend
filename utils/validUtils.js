@@ -32,9 +32,16 @@ function isTooLong(str, maxLength) {
   return typeof str === "string" && str.length > maxLength;
 }
 
-function isValidBirthday(value) {
-  const regex = /^\d{4}-\d{2}-\d{2}$/;
-  return regex.test(value);
+
+function isValidBirthday(value){
+  const date = new Date(value);
+  const today = new Date();
+  if (isNaN(date.getTime())){
+    return false;
+  }
+  today.setHours(0,0,0,0);
+  date.setHours(0,0,0,0);
+  return date < today;
 }
 
 function isValidImage(url) {

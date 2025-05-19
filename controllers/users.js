@@ -9,7 +9,7 @@ const {
   isUndefined,
   isNotValidString,
   isTooLong,
-  isValidBirthday,
+  isValidDate,
   isNotValidGender,
   isNotValidUrl
 } = require("../utils/validUtils");
@@ -288,10 +288,155 @@ async function patchProfile(req, res, next) {
   }
 }
 
+// 新增進度
+async function postProgress(req, res, next){
+  const {project_id} = req.params;
+  const {title, content, date, fund_usages=[]} = req.body;
+  try {
+    if (!req.user || !req.user.id){
+      return next(appError(401, '未授權，Token無效'));
+    }
+    for (const detail of fund_usages){
+      const {recipient, usage, amount, status} =detail;
+      if(
+        isUndefined(recipient) ||
+        isNotValidString(recipient) ||
+        isUndefined(usage) ||
+        isNotValidString(usage) ||
+        isNaN(amount) ||
+        amount <= 0 ||
+        isUndefined(status) ||
+        isNotValidString(status)
+      ){
+        return next(appError(400, '明細資料格式有誤'));
+      }
+    }
+    if (
+      isUndefined(title) || 
+      isNotValidString(title) ||
+      isUndefined(content) ||
+      !isValidDate(date)
+    ){
+      return next(appError(400, '格式錯誤'));
+    }
+    try{
+      const progressRepo = dataSource.getRepository("ProjectProgresses");
+      const fundUsageRepo = dataSource.getRepository("FundUsages");
+      const newProgress = await progressRepo.save({
+        project_id,
+        title,
+        content,
+        date,
+      });
+
+      // 處理 fund_usages
+      const statusRepo = dataSource.getRepository("FundUsageStatuses");
+      const fundUsageEntities = [];
+      for (const detail of fund_usages) {
+        const statusCode = (detail.status || '').trim();
+        const statusRecord = await statusRepo.findOne({
+          where: { code: statusCode } 
+        });
+
+      const usageEntity = fundUsageRepo.create({
+        progress_id: newProgress.id,
+        recipient: detail.recipient,
+        usage: detail.usage,
+        amount: detail.amount,
+        status_id: statusRecord.id, 
+      });
+      fundUsageEntities.push(usageEntity);
+      }
+      await fundUsageRepo.save(fundUsageEntities);
+      res.status(200).json({
+        status: true,
+        data: {
+          id: newProgress.id,
+          title: newProgress.title,
+          content: newProgress.content,
+          date: newProgress.date,
+          fund_usages: fundUsageEntities,
+        },
+      });
+  } catch (error) {
+    logger.error('新增進度資料失敗', error);
+    next(error);
+  }
+  } catch (error) {
+    logger.error('新增資料失敗',error);
+    next(error);
+  }
+}
+
+//修改密碼
+async function putChangePassword(req, res, next) {
+  try {
+    const userIdFromToken = req.user?.id;
+    const userIdFromParams = req.params.id; 
+    const { currentPassword, newPassword, newPasswordConfirm } = req.body;
+
+    if (userIdFromToken !== userIdFromParams) {
+      return next(appError(403, "目前密碼驗證失敗"));
+    }
+
+    if (
+      isUndefined(currentPassword) ||
+      isNotValidString(currentPassword) ||
+      isUndefined(newPassword) ||
+      isNotValidString(newPassword) ||
+      isUndefined(newPasswordConfirm) ||
+      isNotValidString(newPasswordConfirm)
+    ) {
+      return next(appError(400, "請正確填寫目前密碼與新密碼"));
+    }
+
+    
+    if (newPassword !== newPasswordConfirm) {
+      return next(appError(400, "新密碼與確認密碼不一致"));
+    }
+
+    if (!passwordPattern.test(newPassword)) {
+      return next(appError(400, "新密碼格式錯誤，需要包含英文數字大小寫，最短8個字，最長16個字"));
+    }
+
+    const userRepository = dataSource.getRepository("Users");
+    const user = await userRepository.findOne({
+      where: { id: userIdFromToken },
+      select: ["id", "hashed_password"]
+    });
+
+    if (!user) {
+      return next(appError(404, "找不到使用者"));
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.hashed_password);
+    if (!isMatch) {
+      return next(appError(401, "目前密碼錯誤"));
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.hashed_password = await bcrypt.hash(newPassword, salt);
+
+    await userRepository.save(user);
+    logger.info(`使用者 ${userIdFromToken} 密碼已修改`);
+
+    res.status(200).json({
+      status: true,
+      message: "密碼修改成功"
+    });
+  } catch (error) {
+    logger.error("修改密碼錯誤", error);
+    next(error);
+  }
+}
+
+
 module.exports = {
   postSignup,
   postLogin,
   postStatus,
   getProfile,
-  patchProfile
+  patchProfile,
+  postProgress,
+  putChangePassword
 };

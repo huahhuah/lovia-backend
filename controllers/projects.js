@@ -199,6 +199,7 @@ async function updateProject(req, res, next) {
   try {
     const projectId = parseInt(req.params.project_id, 10);
     const user = req.user;
+    console.log("user:", req.user);
     const projectRepo = dataSource.getRepository("Projects");
     const planRepo = dataSource.getRepository("ProjectPlans");
 
@@ -269,6 +270,7 @@ async function updateProject(req, res, next) {
 // 查詢所有專案（探索用：支援 filter、分類、分頁、排序、格式化）
 // controllers/projects.js
 const { Between, Not, IsNull } = require("typeorm");
+const Fund_usages = require("../entities/Fund_usages");
 
 async function getAllProjects(req, res, next) {
   try {
@@ -523,6 +525,8 @@ async function getProjectPlans(req, res, next) {
   }
 }
 
+
+
 module.exports = {
   createProject,
   createProjectPlan,
@@ -531,5 +535,6 @@ module.exports = {
   getAllProjects,
   getAllCategories,
   getProjectOverview,
-  getProjectPlans
+   getProjectPlans,
+
 };
