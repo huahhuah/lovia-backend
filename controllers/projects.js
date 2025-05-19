@@ -2,6 +2,8 @@ const express = require("express");
 const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("Projects");
 const appError = require("../utils/appError");
+const { getProjectType } = require("../utils/projectType");
+
 const jwt = require("jsonwebtoken");
 
 //  步驟一：建立專案
@@ -266,12 +268,12 @@ async function updateProject(req, res, next) {
 }
 
 // 查詢所有專案（探索用：支援 filter、分類、分頁、排序、格式化）
+// controllers/projects.js
 const { Between, Not, IsNull } = require("typeorm");
 const Fund_usages = require("../entities/Fund_usages");
 
 async function getAllProjects(req, res, next) {
   try {
-    await updateExpiredProjects();
     const projectRepo = dataSource.getRepository("Projects");
 
     const page = parseInt(req.query.page) || 1;
@@ -285,12 +287,32 @@ async function getAllProjects(req, res, next) {
     const next70Days = new Date();
     next70Days.setDate(today.getDate() + 70);
 
+    // 查詢開始時間
+    const start = Date.now();
+
     const qb = projectRepo
       .createQueryBuilder("project")
-      .leftJoinAndSelect("project.category", "category")
-      .leftJoinAndSelect("project.user", "user")
+      .leftJoin("project.category", "category")
+      .addSelect(["category.id", "category.name", "category.image"])
       .skip((page - 1) * perPage)
-      .take(perPage);
+      .take(perPage)
+      .select([
+        "project.id",
+        "project.title",
+        "project.summary",
+        "project.start_time",
+        "project.end_time",
+        "project.amount",
+        "project.total_amount",
+        "project.cover",
+        "project.created_at",
+        "project.project_team",
+        "project.project_type",
+        "project.is_finished",
+        "category.id",
+        "category.name",
+        "category.image"
+      ]);
 
     // 篩選條件
     if (categoryId) {
@@ -307,28 +329,27 @@ async function getAllProjects(req, res, next) {
       case "recent":
         qb.andWhere("project.is_finished = false").andWhere(
           "project.end_time BETWEEN :today AND :next70Days",
-          { today, next70Days }
+          {
+            today,
+            next70Days
+          }
         );
         break;
-
       case "funding":
         qb.andWhere("project.is_finished = false").andWhere(
           "(project.project_type IS NULL OR project.project_type != '長期贊助')"
         );
         break;
-
       case "long":
-        qb.andWhere("project.project_type = '長期贊助'");
+        qb.andWhere("project.project_type = '長期贊助'").andWhere("project.is_finished = false");
         break;
-
       case "archived":
-        qb.andWhere("project.is_finished = true");
+        qb.andWhere("project.project_type = '歷年專案'");
         break;
 
       case "popular":
         qb.andWhere("project.is_finished = false");
         break;
-
       case "all":
       default:
         qb.andWhere("project.is_finished = false");
@@ -345,6 +366,7 @@ async function getAllProjects(req, res, next) {
     }
 
     const [projects, total] = await qb.getManyAndCount();
+    console.log("查詢耗時：", Date.now() - start, "ms");
 
     const formatted = projects.map(p => {
       const percentage = p.total_amount === 0 ? 0 : (p.amount / p.total_amount) * 100;
@@ -352,6 +374,7 @@ async function getAllProjects(req, res, next) {
         0,
         Math.ceil((new Date(p.end_time) - new Date()) / (1000 * 60 * 60 * 24))
       );
+
       return {
         id: p.id,
         title: p.title,
@@ -367,28 +390,10 @@ async function getAllProjects(req, res, next) {
         proposer: p.project_team || "未知提案者",
         category_img: p.category?.image || "/default.png",
         category_id: p.category?.id || null,
-        category_name: p.category?.name || "未分類"
+        category_name: p.category?.name || "未分類",
+        project_type: p.project_type
       };
     });
-
-    async function getAllCategories(req, res, next) {
-      try {
-        const categoryRepo = dataSource.getRepository("Categories");
-        const categories = await categoryRepo.find();
-
-        res.status(200).json({
-          status: true,
-          message: "分類列表取得成功",
-          data: categories
-        });
-      } catch (error) {
-        console.error("取得分類失敗：", error);
-        res.status(500).json({
-          status: false,
-          message: "伺服器錯誤，無法取得分類"
-        });
-      }
-    }
 
     res.status(200).json({
       status: true,
@@ -406,6 +411,7 @@ async function getAllProjects(req, res, next) {
     next(error);
   }
 }
+
 //查詢所有分類
 async function getAllCategories(req, res, next) {
   try {
@@ -418,7 +424,7 @@ async function getAllCategories(req, res, next) {
       data: categories
     });
   } catch (error) {
-    console.error(" 取得分類失敗：", error);
+    logger.error("取得分類失敗", error);
     res.status(500).json({
       status: false,
       message: "伺服器錯誤，無法取得分類"
@@ -519,71 +525,7 @@ async function getProjectPlans(req, res, next) {
   }
 }
 
-//自動更新過期專案狀態
-async function updateExpiredProjects() {
-  const projectRepo = dataSource.getRepository("Projects");
-  const today = new Date();
 
-  // 取得所有還沒結束的募資中、長期贊助
-  const activeProjects = await projectRepo.find({
-    where: [
-      { is_finished: false, project_type: "募資中" },
-      { is_finished: false, project_type: "長期贊助" }
-    ]
-  });
-
-  for (const project of activeProjects) {
-    if (project.end_time !== "9999-12-31" && new Date(project.end_time) < today) {
-      project.project_type = "歷年專案";
-      project.is_finished = true;
-      await projectRepo.save(project); // 個別儲存更新
-    }
-  }
-}
-
-// 取得進度
-async function getProgress(req, res, next){
-    try {
-      const { project_id } = req.params;
-      if (!project_id){
-        return next(appError(400,'請求錯誤'));
-      }
-      const progressRepository = dataSource.getRepository("ProjectProgresses");
-      const progresses = await progressRepository.find({
-        where: {project_id},
-        order: {date: "DESC"},
-        relations:{
-          fundUsages:{
-            status: true
-          }
-        }
-      });
-
-      const result = progresses.map(progress => {
-        const allUsage = (progress.fundUsages || []).map(usage =>({
-        recipient: usage.recipient,
-        usage: usage.usage,
-        amount: usage.amount,
-        status: usage.status?.code || null
-      }));
-        return {
-          id: progress.id,
-          title: progress.title,
-          date: progress.date,
-          content: progress.content,
-          fund_usages: allUsage
-        }
-      });
-      res.status(200).json({
-        status: true,
-        message: '成功取得進度分享',
-        data: result
-      });
-    } catch (error){
-      logger.error('取得進度資料失敗', error);
-      next(error);
-    }
-}
 
 module.exports = {
   createProject,
@@ -593,7 +535,6 @@ module.exports = {
   getAllProjects,
   getAllCategories,
   getProjectOverview,
-  getProjectPlans,
-  updateExpiredProjects,
-  getProgress
+   getProjectPlans,
+
 };
