@@ -3,7 +3,6 @@ const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("Projects");
 const appError = require("../utils/appError");
 const { getProjectType } = require("../utils/projectType");
-
 const jwt = require("jsonwebtoken");
 
 //  步驟一：建立專案
@@ -56,6 +55,8 @@ async function createProject(req, res, next) {
 
     const existingCategory = await categoryRepo.findOneBy({ id: category_id });
     if (!existingCategory) return next(appError(400, "無效的 category", next));
+    // 自動判斷 project_type
+    const project_type = getProjectType(start_time, end_time);
 
     const newProject = projectRepo.create({
       title,
@@ -69,7 +70,7 @@ async function createProject(req, res, next) {
       project_team,
       faq,
       user,
-      project_type: end_time === "9999-12-31" ? "長期贊助" : "募資中",
+      project_type,
       is_finished: false
     });
 
@@ -239,6 +240,9 @@ async function updateProject(req, res, next) {
     if (project_team !== undefined) project.project_team = project_team;
     if (faq !== undefined) project.faq = faq;
 
+    // 重新判斷 project_type（用更新後的 start_time, end_time）
+    project.project_type = getProjectType(project.start_time, project.end_time);
+
     if (Array.isArray(req.body.plans)) {
       // 刪除原來plan陣列
       await planRepo.delete({ project: { id: projectId } });
@@ -268,10 +272,6 @@ async function updateProject(req, res, next) {
 }
 
 // 查詢所有專案（探索用：支援 filter、分類、分頁、排序、格式化）
-// controllers/projects.js
-const { Between, Not, IsNull } = require("typeorm");
-const Fund_usages = require("../entities/Fund_usages");
-
 async function getAllProjects(req, res, next) {
   try {
     const projectRepo = dataSource.getRepository("Projects");
@@ -287,7 +287,6 @@ async function getAllProjects(req, res, next) {
     const next70Days = new Date();
     next70Days.setDate(today.getDate() + 70);
 
-    // 查詢開始時間
     const start = Date.now();
 
     const qb = projectRepo
@@ -325,40 +324,34 @@ async function getAllProjects(req, res, next) {
       });
     }
 
+    // 篩選條件分類
+    const filtersRequiringActive = ["recent", "funding", "long", "popular", "all"];
+    if (filtersRequiringActive.includes(filter)) {
+      qb.andWhere("project.is_finished = false");
+    }
+
     switch (filter) {
       case "recent":
-        qb.andWhere("project.is_finished = false").andWhere(
-          "project.end_time BETWEEN :today AND :next70Days",
-          {
-            today,
-            next70Days
-          }
-        );
+        qb.andWhere("project.end_time BETWEEN :today AND :next70Days", {
+          today,
+          next70Days
+        });
         break;
       case "funding":
-        qb.andWhere("project.is_finished = false").andWhere(
-          "(project.project_type IS NULL OR project.project_type != '長期贊助')"
-        );
+        qb.andWhere("project.project_type NOT IN ('長期贊助', '歷年專案')");
         break;
       case "long":
-        qb.andWhere("project.project_type = '長期贊助'").andWhere("project.is_finished = false");
+        qb.andWhere("project.project_type = '長期贊助'");
         break;
       case "archived":
         qb.andWhere("project.project_type = '歷年專案'");
         break;
-
-      case "popular":
-        qb.andWhere("project.is_finished = false");
-        break;
-      case "all":
-      default:
-        qb.andWhere("project.is_finished = false");
-        break;
+      // other cases already handled
     }
 
     // 排序
     if (filter === "popular") {
-      qb.orderBy("project.amount", "DESC");
+      qb.orderBy("project.amount", "DESC").addOrderBy("project.created_at", "DESC");
     } else if (filter === "recent") {
       qb.orderBy("project.end_time", "ASC");
     } else {
@@ -366,7 +359,10 @@ async function getAllProjects(req, res, next) {
     }
 
     const [projects, total] = await qb.getManyAndCount();
-    console.log("查詢耗時：", Date.now() - start, "ms");
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("查詢耗時：", Date.now() - start, "ms");
+    }
 
     const formatted = projects.map(p => {
       const percentage = p.total_amount === 0 ? 0 : (p.amount / p.total_amount) * 100;
@@ -391,7 +387,9 @@ async function getAllProjects(req, res, next) {
         category_img: p.category?.image || "/default.png",
         category_id: p.category?.id || null,
         category_name: p.category?.name || "未分類",
-        project_type: p.project_type
+        project_type: p.project_type,
+        is_success: p.amount >= p.total_amount,
+        is_ending_soon: daysLeft <= 7
       };
     });
 
@@ -416,7 +414,10 @@ async function getAllProjects(req, res, next) {
 async function getAllCategories(req, res, next) {
   try {
     const categoryRepo = dataSource.getRepository("Categories");
-    const categories = await categoryRepo.find();
+    const categories = await categoryRepo.find({
+      select: ["id", "name", "image"], // 若只需這些欄位
+      order: { name: "ASC" }
+    });
 
     res.status(200).json({
       status: true,
@@ -424,7 +425,7 @@ async function getAllCategories(req, res, next) {
       data: categories
     });
   } catch (error) {
-    logger.error("取得分類失敗", error);
+    console.error("取得分類失敗：", error);
     res.status(500).json({
       status: false,
       message: "伺服器錯誤，無法取得分類"
@@ -525,7 +526,49 @@ async function getProjectPlans(req, res, next) {
   }
 }
 
+// 取得進度
+async function getProgress(req, res, next) {
+  try {
+    const { project_id } = req.params;
+    if (!project_id) {
+      return next(appError(400, "請求錯誤"));
+    }
+    const progressRepository = dataSource.getRepository("ProjectProgresses");
+    const progresses = await progressRepository.find({
+      where: { project_id },
+      order: { date: "DESC" },
+      relations: {
+        fundUsages: {
+          status: true
+        }
+      }
+    });
 
+    const result = progresses.map(progress => {
+      const allUsage = (progress.fundUsages || []).map(usage => ({
+        recipient: usage.recipient,
+        usage: usage.usage,
+        amount: usage.amount,
+        status: usage.status?.code || null
+      }));
+      return {
+        id: progress.id,
+        title: progress.title,
+        date: progress.date,
+        content: progress.content,
+        fund_usages: allUsage
+      };
+    });
+    res.status(200).json({
+      status: true,
+      message: "成功取得進度分享",
+      data: result
+    });
+  } catch (error) {
+    logger.error("取得進度資料失敗", error);
+    next(error);
+  }
+}
 
 module.exports = {
   createProject,
@@ -535,6 +578,6 @@ module.exports = {
   getAllProjects,
   getAllCategories,
   getProjectOverview,
-   getProjectPlans,
-
+  getProjectPlans,
+  getProgress
 };
