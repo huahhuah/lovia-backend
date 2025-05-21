@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Call Render backend and show HTTP status
         run: |
-          echo "Calling https://little-chapter-backend.onrender.com/ at $(date -u)"
-          status=$(curl -s -o /dev/null -w "%{http_code}" https://little-chapter-backend.onrender.com/)
+          echo "Calling https://lovia-backend-xl4e.onrender.com/ at $(date -u)"
+          status=$(curl -s -o /dev/null -w "%{http_code}"https://lovia-backend-xl4e.onrender.com/)
           echo "HTTP Status: $status"
