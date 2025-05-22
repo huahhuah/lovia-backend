@@ -20,5 +20,7 @@ router.get("/:projectId/overview", projects.getProjectOverview);
 router.get("/:project_id", projects.getProject);
 router.put("/:project_id", auth, projects.updateProject);
 router.get("/:project_id/progresses", projects.getProgress);
+router.post("/:project_id/comments", auth, projects.createProjectComment);
+router.post("/:project_id/plans/:plan_id/sponsor", auth, projects.sponsorProjectPlan);
 
 module.exports = router;

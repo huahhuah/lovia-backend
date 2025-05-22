@@ -404,7 +404,6 @@ async function getAllProjects(req, res, next) {
       }
     });
   } catch (error) {
-    console.error("取得專案失敗：", error);
     logger.warn("取得專案失敗", error);
     next(error);
   }
@@ -425,15 +424,25 @@ async function getAllCategories(req, res, next) {
       data: categories
     });
   } catch (error) {
-    console.error("取得分類失敗：", error);
-    res.status(500).json({
-      status: false,
-      message: "伺服器錯誤，無法取得分類"
-    });
+    logger.error("取得分類失敗：", error);
+    next(error);
   }
 }
 
 // 查詢專案概覽
+function getCategoryImg(name) {
+  const map = {
+    動物: "animal",
+    醫療: "medical",
+    人文: "humanity",
+    環境: "environment",
+    救援: "rescue"
+  };
+
+  const fileKey = Object.keys(map).find(key => name?.includes(key));
+  return fileKey ? `/images/categories/${map[fileKey]}.png` : "";
+}
+
 async function getProjectOverview(req, res, next) {
   const projectId = parseInt(req.params.projectId);
 
@@ -443,17 +452,19 @@ async function getProjectOverview(req, res, next) {
 
   try {
     const projectRepo = dataSource.getRepository("Projects");
-    const userRepo = dataSource.getRepository("Users");
 
-    // 查詢 project 本身資料（需包含 category、user 等關聯）
+    // 查詢 project 本身資料（需包含 category 關聯）
     const project = await projectRepo.findOne({
       where: { id: projectId },
-      relations: ["category", "user"] // 假設關聯設為 category 與 user（提案人）
+      relations: ["category"]
     });
 
     if (!project) {
       return next(appError(404, "找不到該專案"));
     }
+
+    const categoryName = project.category?.name || "";
+    const categoryImg = getCategoryImg(categoryName);
 
     // 計算進度與剩餘天數
     const current_amount = project.current_amount || 0;
@@ -472,14 +483,15 @@ async function getProjectOverview(req, res, next) {
       data: {
         title: project.title,
         summary: project.summary,
-        category: project.category.name, // 取分類名稱
+        category: project.category || null,
+        category_img: categoryImg,
         total_amount: project.total_amount,
         current_amount,
         progress_percent,
         start_time: project.start_time,
         end_time: project.end_time,
         remaining_days,
-        proposer: project.user.username, // 提案者名稱
+
         cover: project.cover,
         full_content: project.full_content,
         project_team: project.project_team
@@ -570,6 +582,95 @@ async function getProgress(req, res, next) {
   }
 }
 
+//新增留言
+async function createProjectComment(req, res, next) {
+  try {
+    const { project_id } = req.params;
+    const { content } = req.body;
+    const userId = req.user.id;
+
+    //驗證留言內容
+    if (!content || content.trim() === "") {
+      return next(appError(400, "留言內容不能為空"));
+    }
+
+    const commentRepo = dataSource.getRepository("ProjectComments");
+
+    const newComment = commentRepo.create({
+      content,
+      user: {
+        id: userId
+      },
+      project: {
+        id: parseInt(project_id)
+      }
+    });
+
+    await commentRepo.save(newComment);
+    res.status(200).json({
+      status: true,
+      message: "留言成功",
+      data: newComment
+    });
+  } catch (error) {
+    logger.error("建立留言失敗", error);
+    next(error);
+  }
+}
+
+//使用者針對某個專案的某個回饋方案進行贊助
+async function sponsorProjectPlan(req, res, next) {
+  try {
+    const { project_id, plan_id } = req.params;
+    const { display_name, note, quantity } = req.body;
+    const userId = req.user.id;
+
+    const planRepo = dataSource.getRepository("ProjectPlans");
+    const plan = await planRepo.findOneBy({ plan_id: parseInt(plan_id) });
+
+    const projectRepo = dataSource.getRepository("Projects");
+    const project = await projectRepo.findOneBy({ id: parseInt(project_id) });
+
+    if (!project) {
+      return next(appError(404, "找不到該專案"));
+    }
+
+    if (project.project_type === "歷年專案") {
+      return next(appError(403, "歷年專案無法再進行贊助"));
+    }
+
+    if (!plan) {
+      return next(appError(404, "找不到回饋方案"));
+    }
+
+    const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      return next(appError(400, "贊助數量必須為正整數"));
+    }
+
+    const sponsorRepo = dataSource.getRepository("Sponsorships"); // ✅ 修正名稱
+    const newSponsorship = sponsorRepo.create({
+      user: { id: userId },
+      project: { id: parseInt(project_id) },
+      plan: { plan_id: parseInt(plan_id) }, // 如果 plan 的主鍵叫 plan_id
+      quantity: qty,
+      display_name,
+      note
+    });
+
+    await sponsorRepo.save(newSponsorship);
+
+    res.status(200).json({
+      status: true,
+      message: "贊助成功",
+      data: newSponsorship
+    });
+  } catch (error) {
+    logger.error("贊助過程中發生錯誤", error);
+    next(error);
+  }
+}
+
 module.exports = {
   createProject,
   createProjectPlan,
@@ -579,5 +680,7 @@ module.exports = {
   getAllCategories,
   getProjectOverview,
   getProjectPlans,
-  getProgress
+  getProgress,
+  createProjectComment,
+  sponsorProjectPlan
 };
