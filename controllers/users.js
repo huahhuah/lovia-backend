@@ -430,6 +430,103 @@ async function putChangePassword(req, res, next) {
   }
 }
 
+// 修改進度
+async function updateProgress(req, res, next){
+  const {project_id, progress_id} = req.params;
+  const {title, content, date, fund_usages} = req.body;
+  const projectRepo = dataSource.getRepository("Projects");
+  const progressRepo = dataSource.getRepository("ProjectProgresses");
+  try {
+    if(!req.user || !req.user.id){
+      return next(appError(401,'未授權，Token無效'));
+    }
+    const progress = await progressRepo.findOne({
+      where: {id: progress_id, project_id: project_id, },
+      relations: ["project", "project.user"]
+    });
+    if (!progress) return next(appError(400, '找不到進度'));
+    const project = progress.project;
+    if (!project) return next(appError(400, '找不到專案'));
+    if (project.user.id !== req.user.id){
+      return next(appError(403, '你沒有修改此進度的權利'))
+    };
+
+    // 更新有變更的欄位
+    if (title !== undefined){
+      if(isNotValidString(title) ||isTooLong(title,100)) {
+        return next(appError(400, '標題格式錯誤'));
+      }
+      progress.title = title
+    };
+    if (date !== undefined){
+      if(!isValidDate(date)){
+        return next(appError(400, '日期格式錯誤'));
+      }
+      progress.date = date;
+    };
+    if (content !== undefined) progress.content = content;
+
+    const fundUsageRepo = dataSource.getRepository("FundUsages");
+    let newFundUsages = [];
+    if (Array.isArray(fund_usages)){
+      await fundUsageRepo.delete({ progress:{id: progress_id}});
+      if (fund_usages.length >0 ){
+        newFundUsages = fund_usages.map(detail =>{
+          if (!detail.recipient || isNotValidString(detail.recipient)){
+            throw next(appError(400, '收款單位格式錯誤'));
+          };
+          if (isNaN(detail.amount) || detail.amount <=0 ){
+              throw next(appError(400, '金額必須為正整數'));
+          };
+          const statusMap = {
+            "已撥款": 1,
+            "審核中": 2,
+            "未撥款": 3,
+          };
+          let status_id = detail.status_id;
+          if (!status_id && detail.status && statusMap[detail.status]) {
+            status_id = statusMap[detail.status];
+          };          
+          if (!status_id ){
+            return next(appError(400, '缺少狀態 ID'));
+          }
+          return fundUsageRepo.create({
+            recipient: detail.recipient,
+            usage: detail.usage,
+            amount: detail.amount,
+            status: {id: status_id},
+            progress: { id: progress_id }
+          });
+      })
+      await fundUsageRepo.save(newFundUsages);
+      }; 
+    }
+    await progressRepo.save(progress);
+    const updateProgress = await progressRepo.findOne({
+      where: {id: progress_id},
+      relations: ["fundUsages", "fundUsages.status"]
+    });
+    res.status(200).json({
+      status: true,
+      data:{ 
+        progress_id: updateProgress.id,
+        title: updateProgress.title,
+        date: updateProgress.date,
+        content: updateProgress.content,
+        fund_usages: updateProgress.fundUsages.map(detail =>({
+          recipient: detail.recipient,
+          usage: detail.usage,
+          amount: detail.amount,
+          status: detail.status?.code || null
+        }))
+      },
+      created_at: new Date()
+    });
+  } catch (error){
+    logger.error('更新失敗',error);
+    next(error);
+  }
+}
 
 module.exports = {
   postSignup,
@@ -438,5 +535,6 @@ module.exports = {
   getProfile,
   patchProfile,
   postProgress,
-  putChangePassword
+  putChangePassword,
+  updateProgress
 };
