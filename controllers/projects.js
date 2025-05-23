@@ -200,7 +200,6 @@ async function updateProject(req, res, next) {
   try {
     const projectId = parseInt(req.params.project_id, 10);
     const user = req.user;
-    console.log("user:", req.user);
     const projectRepo = dataSource.getRepository("Projects");
     const planRepo = dataSource.getRepository("ProjectPlans");
 

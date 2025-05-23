@@ -7,9 +7,9 @@ const logger = require("../utils/logger")("UploadRoute");
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  // 限制上傳檔案最大為2MB
+  // 限制上傳檔案最大為10MB
   limits: {
-    fileSize: 2 * 1024 * 1024
+    fileSize: 10 * 1024 * 1024
   }
 });
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
