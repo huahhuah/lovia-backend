@@ -11,7 +11,8 @@
     "dev": "nodemon ./bin/www",
     "test:unit": "node --experimental-vm-modules node_modules/.bin/jest --config ./jest.config.js --coverage --roots ./test/unit",
     "test:integration": "node --experimental-vm-modules node_modules/.bin/jest --testSequencer=./test/sequencer -i --config ./jest.config.js --coverage --roots ./test/integration",
-    "init:schema": "typeorm schema:sync -d ./db/data-source.js"
+    "init:schema": "typeorm schema:sync -d ./db/data-source.js",
+     "seed:invoice-types": "node scripts/seedInvoiceTypes.js"
   },
   "keywords": [],
   "author": "",

@@ -14,6 +14,9 @@ const FundUsage = require("../entities/Fund_usages.js");
 const FundUsageStatus = require("../entities/Fund_usages_statuses.js");
 const ProjectComments = require("../entities/Project_comments.js");
 const Sponsorships = require("../entities/Sponsorships.js");
+const Shippings = require("../entities/Shippings.js");
+const Invoices = require("../entities/Invoices.js");
+const InvoiceTypes = require("../entities/InvoiceTypes.js");
 
 const isRender = process.env.DATABASE_URL?.includes("render.com");
 const sslOption = isRender || config.get("db.ssl") ? { rejectUnauthorized: false } : false;
@@ -36,7 +39,10 @@ const dataSource = new DataSource({
     FundUsage,
     FundUsageStatus,
     ProjectComments,
-    Sponsorships
+    Sponsorships,
+    Shippings,
+    Invoices,
+    InvoiceTypes
   ]
 });
 
