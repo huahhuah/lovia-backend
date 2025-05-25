@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const { cancelExpiredPendingSponsorships } = require("../services/sponsorship.service");
+const { cancelExpiredPendingSponsorships } = require("../services/sponsorshipService");
 const logger = require("../utils/logger")("CleanupPendingSponsorships");
 
 function startCleanupPendingSponsorshipsJob() {
