@@ -22,6 +22,11 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
+if (process.env.NODE_ENV === "production") {
+  const { startCleanupPendingSponsorshipsJob } = require("./cronJobs/cleanupPendingSponsorships");
+  startCleanupPendingSponsorshipsJob();
+}
+
 //  Middleware 設定
 app.use(cors());
 app.use(express.json());
@@ -60,13 +65,10 @@ app.use((req, res, next) => {
 // eslint-disable-next-line no-unused-vars
 //放在所有路由之後,統一處理錯誤
 app.use((err, req, res, next) => {
-
-
-    if (!err) { 
+  if (!err) {
     err = new Error("未知錯誤");
   }
-  req.log.error(err.message || 'No error message');
-
+  req.log.error(err.message || "No error message");
 
   const statusCode = err.status || 500; // 400, 409, 500 ...
   res.status(statusCode).json({

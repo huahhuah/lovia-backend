@@ -8,6 +8,12 @@ module.exports = new EntitySchema({
       type: "int",
       generated: "increment"
     },
+    order_uuid: {
+      type: "uuid",
+      unique: true,
+      generated: "uuid",
+      default: () => "uuid_generate_v4()"
+    },
     display_name: {
       type: "varchar",
       length: 50,
@@ -19,7 +25,17 @@ module.exports = new EntitySchema({
     },
     quantity: {
       type: "int",
-      default: 1
+      nullable: false
+    },
+    amount: {
+      type: "int",
+      nullable: false,
+      default: 0
+    },
+    status: {
+      type: "enum",
+      enum: ["pending", "paid", "cancelled"],
+      default: "pending"
     },
     created_at: {
       type: "timestamp",
@@ -31,19 +47,35 @@ module.exports = new EntitySchema({
       type: "many-to-one",
       target: "Users",
       joinColumn: { name: "user_id" },
-      onDelete: "CASCADE"
+      eager: true
     },
     project: {
       type: "many-to-one",
       target: "Projects",
       joinColumn: { name: "project_id" },
-      onDelete: "CASCADE"
+      eager: true
     },
     plan: {
       type: "many-to-one",
       target: "ProjectPlans",
       joinColumn: { name: "plan_id" },
-      onDelete: "CASCADE"
+      eager: true
+    },
+    shipping: {
+      type: "one-to-one",
+      target: "Shippings",
+      inverseSide: "sponsorship",
+      cascade: true,
+      onDelete: "CASCADE",
+      eager: true
+    },
+    invoice: {
+      type: "one-to-one",
+      target: "Invoices",
+      inverseSide: "sponsorship",
+      cascade: true,
+      onDelete: "CASCADE",
+      eager: true
     }
   }
 });

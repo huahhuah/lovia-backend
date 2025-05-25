@@ -22,5 +22,6 @@ router.put("/:project_id", auth, projects.updateProject);
 router.get("/:project_id/progresses", projects.getProgress);
 router.post("/:project_id/comments", auth, projects.createProjectComment);
 router.post("/:project_id/plans/:plan_id/sponsor", auth, projects.sponsorProjectPlan);
+router.post("/:project_id/plans/:plan_id/sponsor-entry", auth, projects.createProjectSponsorship);
 
 module.exports = router;

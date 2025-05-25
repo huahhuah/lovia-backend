@@ -4,6 +4,8 @@ const logger = require("../utils/logger")("Projects");
 const appError = require("../utils/appError");
 const { getProjectType } = require("../utils/projectType");
 const jwt = require("jsonwebtoken");
+const { validateInvoice } = require("../utils/validateInvoice");
+const { v4: uuidv4 } = require("uuid");
 
 //  步驟一：建立專案
 async function createProject(req, res, next) {
@@ -621,40 +623,36 @@ async function createProjectComment(req, res, next) {
 async function sponsorProjectPlan(req, res, next) {
   try {
     const { project_id, plan_id } = req.params;
-    const { display_name, note, quantity } = req.body;
+    const { sponsorship = {} } = req.body;
+    const { display_name, note, amount } = sponsorship;
     const userId = req.user.id;
 
-    const planRepo = dataSource.getRepository("ProjectPlans");
-    const plan = await planRepo.findOneBy({ plan_id: parseInt(plan_id) });
+    const pid = parseInt(project_id, 10);
+    const planId = parseInt(plan_id, 10);
 
     const projectRepo = dataSource.getRepository("Projects");
-    const project = await projectRepo.findOneBy({ id: parseInt(project_id) });
+    const planRepo = dataSource.getRepository("ProjectPlans");
+    const sponsorRepo = dataSource.getRepository("Sponsorships");
 
-    if (!project) {
-      return next(appError(404, "找不到該專案"));
-    }
+    const project = await projectRepo.findOneBy({ id: pid });
+    if (!project) return next(appError(404, "找不到該專案"));
+    if (project.project_type === "歷年專案") return next(appError(403, "歷年專案無法再進行贊助"));
 
-    if (project.project_type === "歷年專案") {
-      return next(appError(403, "歷年專案無法再進行贊助"));
-    }
+    const plan = await planRepo.findOneBy({ plan_id: planId }); // ✅ plan_id 是 ProjectPlans 的主鍵
 
-    if (!plan) {
-      return next(appError(404, "找不到回饋方案"));
-    }
+    if (!plan) return next(appError(404, "找不到回饋方案"));
 
-    const qty = Number(quantity);
-    if (!Number.isInteger(qty) || qty <= 0) {
-      return next(appError(400, "贊助數量必須為正整數"));
-    }
+    const amt = Number(amount);
+    if (!Number.isInteger(amt) || amt < 0) return next(appError(400, "贊助金額必須為正整數"));
 
-    const sponsorRepo = dataSource.getRepository("Sponsorships"); // ✅ 修正名稱
     const newSponsorship = sponsorRepo.create({
       user: { id: userId },
-      project: { id: parseInt(project_id) },
-      plan: { plan_id: parseInt(plan_id) }, // 如果 plan 的主鍵叫 plan_id
-      quantity: qty,
-      display_name,
-      note
+      project: { id: pid },
+      plan: { plan_id: planId },
+      quantity: 1,
+      amount: amt,
+      display_name: display_name || "",
+      note: note || ""
     });
 
     await sponsorRepo.save(newSponsorship);
@@ -665,8 +663,126 @@ async function sponsorProjectPlan(req, res, next) {
       data: newSponsorship
     });
   } catch (error) {
+    console.error("贊助失敗：", error);
     logger.error("贊助過程中發生錯誤", error);
-    next(error);
+    next(appError(500, "伺服器錯誤", error));
+  }
+}
+
+// 建立完整訂單資訊：含贊助、發票、寄送資料
+async function createProjectSponsorship(req, res, next) {
+  const { project_id, plan_id } = req.params;
+  const { sponsorship = {}, invoice = {}, shipping = {} } = req.body;
+  const userId = req.user?.id;
+
+  try {
+    if (!userId) return next(appError(401, "請先登入再進行贊助"));
+
+    const projectRepo = dataSource.getRepository("Projects");
+    const planRepo = dataSource.getRepository("ProjectPlans");
+    const sponsorshipRepo = dataSource.getRepository("Sponsorships");
+    const shippingRepo = dataSource.getRepository("Shippings");
+    const invoiceRepo = dataSource.getRepository("Invoices");
+    const invoiceTypeRepo = dataSource.getRepository("InvoiceTypes");
+
+    const project = await projectRepo.findOneBy({
+      id: parseInt(project_id)
+    });
+    if (!project) {
+      return next(appError(404, "找不到該專案"));
+    }
+
+    const planIdInt = parseInt(plan_id);
+    if (isNaN(planIdInt)) {
+      return next(appError(400, "回饋方案參數無效"));
+    }
+
+    const plan = await planRepo.findOneBy({ plan_id: planIdInt });
+    console.log(" 查到的回饋方案：", plan);
+    if (!plan) {
+      return next(appError(404, "找不到回饋方案"));
+    }
+
+    const amount = Number(sponsorship.amount);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return next(appError(400, "贊助金額必須為正整數"));
+    }
+
+    const newSponsorship = sponsorshipRepo.create({
+      user: { id: userId },
+      project,
+      plan,
+      quantity: 1,
+      amount,
+      order_uuid: uuidv4(),
+      display_name: sponsorship.display_name?.trim() || "匿名",
+      note: sponsorship.note?.trim() || "",
+      status: "pending"
+    });
+    await sponsorshipRepo.save(newSponsorship);
+
+    const hasShippingInfo =
+      !!shipping.name?.trim() ||
+      !!shipping.phone?.trim() ||
+      !!shipping.address?.trim() ||
+      !!shipping.note?.trim();
+
+    if (hasShippingInfo) {
+      const newShipping = shippingRepo.create({
+        sponsorship: { id: newSponsorship.id },
+        name: shipping.name?.trim() || "未提供姓名",
+        phone: shipping.phone?.trim() || "0912345678",
+        address: shipping.address?.trim() || "未提供地址",
+        note: shipping.note?.trim() || ""
+      });
+      await shippingRepo.save(newShipping);
+    }
+
+    const invoiceTypeCode = invoice.type?.trim?.();
+    if (invoiceTypeCode) {
+      const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
+      if (!invoiceType) return next(appError(400, "發票類型無效"));
+
+      try {
+        validateInvoice(invoice, invoiceTypeCode);
+      } catch (err) {
+        return next(appError(400, err.message || "發票格式錯誤"));
+      }
+
+      const newInvoice = invoiceRepo.create({
+        sponsorship: { id: newSponsorship.id },
+        type: invoiceType,
+        carrier_code: invoice.carrier_code?.trim() || null,
+        tax_id: invoice.tax_id?.trim() || null,
+        title: invoice.title?.trim() || null
+      });
+      await invoiceRepo.save(newInvoice);
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "訂單建立成功，請完成付款",
+      data: {
+        orderId: newSponsorship.order_uuid,
+        sponsorshipId: newSponsorship.id,
+        amount: newSponsorship.amount
+      }
+    });
+  } catch (error) {
+    console.error("建立贊助失敗:", error.message);
+    console.error(" error.stack:\n", error.stack);
+    console.error(" 完整錯誤物件:", error);
+    if (error?.detail) {
+      console.error(" PG Detail:", error.detail);
+    }
+    if (error?.query) {
+      console.error(" SQL:", error.query);
+    }
+    if (error?.parameters) {
+      console.error(" Params:", error.parameters);
+    }
+
+    return next(appError(500, error.message || "伺服器錯誤"));
   }
 }
 
@@ -681,5 +797,6 @@ module.exports = {
   getProjectPlans,
   getProgress,
   createProjectComment,
-  sponsorProjectPlan
+  sponsorProjectPlan,
+  createProjectSponsorship
 };
