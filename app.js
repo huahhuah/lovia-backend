@@ -62,9 +62,8 @@ app.use((req, res, next) => {
   return;
 });
 
-// eslint-disable-next-line no-unused-vars
-//放在所有路由之後,統一處理錯誤
-app.use((err, req, res, next) => {
+// 放在所有路由之後，統一處理錯誤
+app.use((err, req, res, _next) => {
   if (!err) {
     err = new Error("未知錯誤");
   }
