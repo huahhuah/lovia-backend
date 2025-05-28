@@ -156,7 +156,7 @@ async function getProject(req, res, next) {
     const projectRepository = dataSource.getRepository("Projects");
     const project = await projectRepository.findOne({
       where: { id: projectId },
-      relations: ["projectPlans"]
+      relations: ["projectPlans", "category"]
     });
 
     if (!project) {
@@ -219,7 +219,7 @@ async function updateProject(req, res, next) {
     const {
       title,
       summary,
-      category_id,
+      category,
       total_amount,
       start_time,
       end_time,
@@ -233,6 +233,7 @@ async function updateProject(req, res, next) {
     // 更新有變更的欄位
     if (title !== undefined) project.title = title;
     if (summary !== undefined) project.summary = summary;
+    if (category !== undefined) project.category = category.name;  //  這裡
     if (total_amount !== undefined) project.total_amount = Number(total_amount);
     if (start_time !== undefined) project.start_time = start_time;
     if (end_time !== undefined) project.end_time = end_time;
@@ -243,12 +244,13 @@ async function updateProject(req, res, next) {
 
     // 重新判斷 project_type（用更新後的 start_time, end_time）
     project.project_type = getProjectType(project.start_time, project.end_time);
-
+    
+    let newPlans = []
     if (Array.isArray(req.body.plans)) {
       // 刪除原來plan陣列
       await planRepo.delete({ project: { id: projectId } });
       // 建立新的plan陣列
-      const newPlans = req.body.plans.map(plan => {
+      newPlans = req.body.plans.map(plan => {
         return planRepo.create({
           plan_name: plan.plan_name,
           amount: Number(plan.amount),
@@ -261,10 +263,24 @@ async function updateProject(req, res, next) {
       });
       await planRepo.save(newPlans);
     }
+    const resData = {
+      title: project.title,
+      summary: project.summary,
+      category: project.category,
+      total_amount: project.total_amount,
+      start_time: project.start_time,
+      end_time: project.end_time,
+      cover: project.cover,
+      full_content: project.full_content,
+      project_team: project.project_team,
+      faq: project.faq || [],
+      newPlans
+    };
     const updateProject = await projectRepo.save(project);
     res.status(200).json({
       status: true,
-      data: { project_id: updateProject.id }
+      project_id: projectId,
+      data: resData
     });
   } catch (error) {
     logger.error("更新失敗", error);
