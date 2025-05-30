@@ -864,10 +864,22 @@ async function getProjectComment(req, res, next){
       order: {created_at: 'DESC'},
       relations: ['project' , 'user'] 
     })
+    // 擷取需要的回傳
+    const usefulData = comments.map(comment =>({
+      comment_id: comment.commit_id,
+      content: comment.content,
+      created_at: comment.created_at,
+      project:{ id: comment.project.id},
+      user:{
+        id: comment.user.id,
+        name: comment.user.username
+      }
+    }))
+
     res.status(200).json({
       status: true,
       message: "成功取得專案留言",
-      data: comments
+      data: usefulData
     })
   } catch (error){
     next(error);
