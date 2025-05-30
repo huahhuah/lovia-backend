@@ -866,9 +866,9 @@ async function getProjectComment(req, res, next){
     })
     // 擷取需要的回傳
     const usefulData = comments.map(comment =>({
-      comment_id: comment.commit_id,
+      comment_id: comment.comment_id,
       content: comment.content,
-      created_at: comment.created_at,
+      created_at: comment.created_at.toISOString(),
       project:{ id: comment.project.id},
       user:{
         id: comment.user.id,
