@@ -8,6 +8,7 @@ const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
 const projectRouter = require("./routes/projects");
 const uploadRouter = require("./routes/upload");
+const ecPayRouter = require("./routes/ecpay");
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
+app.use("/api/v1/ecpay", ecPayRouter);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

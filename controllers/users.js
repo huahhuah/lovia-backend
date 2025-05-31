@@ -289,16 +289,16 @@ async function patchProfile(req, res, next) {
 }
 
 // 新增進度
-async function postProgress(req, res, next){
-  const {project_id} = req.params;
-  const {title, content, date, fund_usages=[]} = req.body;
+async function postProgress(req, res, next) {
+  const { project_id } = req.params;
+  const { title, content, date, fund_usages = [] } = req.body;
   try {
-    if (!req.user || !req.user.id){
-      return next(appError(401, '未授權，Token無效'));
+    if (!req.user || !req.user.id) {
+      return next(appError(401, "未授權，Token無效"));
     }
-    for (const detail of fund_usages){
-      const {recipient, usage, amount, status} =detail;
-      if(
+    for (const detail of fund_usages) {
+      const { recipient, usage, amount, status } = detail;
+      if (
         isUndefined(recipient) ||
         isNotValidString(recipient) ||
         isUndefined(usage) ||
@@ -307,45 +307,45 @@ async function postProgress(req, res, next){
         amount <= 0 ||
         isUndefined(status) ||
         isNotValidString(status)
-      ){
-        return next(appError(400, '明細資料格式有誤'));
+      ) {
+        return next(appError(400, "明細資料格式有誤"));
       }
     }
     if (
-      isUndefined(title) || 
+      isUndefined(title) ||
       isNotValidString(title) ||
       isUndefined(content) ||
       !isValidDate(date)
-    ){
-      return next(appError(400, '格式錯誤'));
+    ) {
+      return next(appError(400, "格式錯誤"));
     }
-    try{
+    try {
       const progressRepo = dataSource.getRepository("ProjectProgresses");
       const fundUsageRepo = dataSource.getRepository("FundUsages");
       const newProgress = await progressRepo.save({
         project_id,
         title,
         content,
-        date,
+        date
       });
 
       // 處理 fund_usages
       const statusRepo = dataSource.getRepository("FundUsageStatuses");
       const fundUsageEntities = [];
       for (const detail of fund_usages) {
-        const statusCode = (detail.status || '').trim();
+        const statusCode = (detail.status || "").trim();
         const statusRecord = await statusRepo.findOne({
-          where: { code: statusCode } 
+          where: { code: statusCode }
         });
 
-      const usageEntity = fundUsageRepo.create({
-        progress_id: newProgress.id,
-        recipient: detail.recipient,
-        usage: detail.usage,
-        amount: detail.amount,
-        status_id: statusRecord.id, 
-      });
-      fundUsageEntities.push(usageEntity);
+        const usageEntity = fundUsageRepo.create({
+          progress_id: newProgress.id,
+          recipient: detail.recipient,
+          usage: detail.usage,
+          amount: detail.amount,
+          status_id: statusRecord.id
+        });
+        fundUsageEntities.push(usageEntity);
       }
       await fundUsageRepo.save(fundUsageEntities);
       res.status(200).json({
@@ -355,15 +355,15 @@ async function postProgress(req, res, next){
           title: newProgress.title,
           content: newProgress.content,
           date: newProgress.date,
-          fund_usages: fundUsageEntities,
-        },
+          fund_usages: fundUsageEntities
+        }
       });
+    } catch (error) {
+      logger.error("新增進度資料失敗", error);
+      next(error);
+    }
   } catch (error) {
-    logger.error('新增進度資料失敗', error);
-    next(error);
-  }
-  } catch (error) {
-    logger.error('新增資料失敗',error);
+    logger.error("新增資料失敗", error);
     next(error);
   }
 }
@@ -372,7 +372,7 @@ async function postProgress(req, res, next){
 async function putChangePassword(req, res, next) {
   try {
     const userIdFromToken = req.user?.id;
-    const userIdFromParams = req.params.id; 
+    const userIdFromParams = req.params.id;
     const { currentPassword, newPassword, newPasswordConfirm } = req.body;
 
     if (userIdFromToken !== userIdFromParams) {
@@ -390,7 +390,6 @@ async function putChangePassword(req, res, next) {
       return next(appError(400, "請正確填寫目前密碼與新密碼"));
     }
 
-    
     if (newPassword !== newPasswordConfirm) {
       return next(appError(400, "新密碼與確認密碼不一致"));
     }
@@ -431,89 +430,89 @@ async function putChangePassword(req, res, next) {
 }
 
 // 修改進度
-async function updateProgress(req, res, next){
-  const {project_id, progress_id} = req.params;
-  const {title, content, date, fund_usages} = req.body;
+async function updateProgress(req, res, next) {
+  const { project_id, progress_id } = req.params;
+  const { title, content, date, fund_usages } = req.body;
   const projectRepo = dataSource.getRepository("Projects");
   const progressRepo = dataSource.getRepository("ProjectProgresses");
   try {
-    if(!req.user || !req.user.id){
-      return next(appError(401,'未授權，Token無效'));
+    if (!req.user || !req.user.id) {
+      return next(appError(401, "未授權，Token無效"));
     }
     const progress = await progressRepo.findOne({
-      where: {id: progress_id, project_id: project_id, },
+      where: { id: progress_id, project_id: project_id },
       relations: ["project", "project.user"]
     });
-    if (!progress) return next(appError(400, '找不到進度'));
+    if (!progress) return next(appError(400, "找不到進度"));
     const project = progress.project;
-    if (!project) return next(appError(400, '找不到專案'));
-    if (project.user.id !== req.user.id){
-      return next(appError(403, '你沒有修改此進度的權利'))
-    };
+    if (!project) return next(appError(400, "找不到專案"));
+    if (project.user.id !== req.user.id) {
+      return next(appError(403, "你沒有修改此進度的權利"));
+    }
 
     // 更新有變更的欄位
-    if (title !== undefined){
-      if(isNotValidString(title) ||isTooLong(title,100)) {
-        return next(appError(400, '標題格式錯誤'));
+    if (title !== undefined) {
+      if (isNotValidString(title) || isTooLong(title, 100)) {
+        return next(appError(400, "標題格式錯誤"));
       }
-      progress.title = title
-    };
-    if (date !== undefined){
-      if(!isValidDate(date)){
-        return next(appError(400, '日期格式錯誤'));
+      progress.title = title;
+    }
+    if (date !== undefined) {
+      if (!isValidDate(date)) {
+        return next(appError(400, "日期格式錯誤"));
       }
       progress.date = date;
-    };
+    }
     if (content !== undefined) progress.content = content;
 
     const fundUsageRepo = dataSource.getRepository("FundUsages");
     let newFundUsages = [];
-    if (Array.isArray(fund_usages)){
-      await fundUsageRepo.delete({ progress:{id: progress_id}});
-      if (fund_usages.length >0 ){
-        newFundUsages = fund_usages.map(detail =>{
-          if (!detail.recipient || isNotValidString(detail.recipient)){
-            throw next(appError(400, '收款單位格式錯誤'));
-          };
-          if (isNaN(detail.amount) || detail.amount <=0 ){
-              throw next(appError(400, '金額必須為正整數'));
-          };
+    if (Array.isArray(fund_usages)) {
+      await fundUsageRepo.delete({ progress: { id: progress_id } });
+      if (fund_usages.length > 0) {
+        newFundUsages = fund_usages.map(detail => {
+          if (!detail.recipient || isNotValidString(detail.recipient)) {
+            throw next(appError(400, "收款單位格式錯誤"));
+          }
+          if (isNaN(detail.amount) || detail.amount <= 0) {
+            throw next(appError(400, "金額必須為正整數"));
+          }
           const statusMap = {
-            "已撥款": 1,
-            "審核中": 2,
-            "未撥款": 3,
+            已撥款: 1,
+            審核中: 2,
+            未撥款: 3
           };
           let status_id = detail.status_id;
           if (!status_id && detail.status && statusMap[detail.status]) {
             status_id = statusMap[detail.status];
-          };          
-          if (!status_id ){
-            return next(appError(400, '缺少狀態 ID'));
+          }
+          if (!status_id) {
+            return next(appError(400, "缺少狀態 ID"));
           }
           return fundUsageRepo.create({
             recipient: detail.recipient,
             usage: detail.usage,
             amount: detail.amount,
-            status: {id: status_id},
+            status: { id: status_id },
             progress: { id: progress_id }
           });
-      })
-      await fundUsageRepo.save(newFundUsages);
-      }; 
+        });
+        await fundUsageRepo.save(newFundUsages);
+      }
     }
     await progressRepo.save(progress);
     const updateProgress = await progressRepo.findOne({
-      where: {id: progress_id},
+      where: { id: progress_id },
       relations: ["fundUsages", "fundUsages.status"]
     });
     res.status(200).json({
       status: true,
-      data:{ 
+      data: {
         progress_id: updateProgress.id,
         title: updateProgress.title,
         date: updateProgress.date,
         content: updateProgress.content,
-        fund_usages: updateProgress.fundUsages.map(detail =>({
+        fund_usages: updateProgress.fundUsages.map(detail => ({
           recipient: detail.recipient,
           usage: detail.usage,
           amount: detail.amount,
@@ -522,8 +521,8 @@ async function updateProgress(req, res, next){
       },
       created_at: new Date()
     });
-  } catch (error){
-    logger.error('更新失敗',error);
+  } catch (error) {
+    logger.error("更新失敗", error);
     next(error);
   }
 }
