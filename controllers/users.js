@@ -528,6 +528,52 @@ async function updateProgress(req, res, next){
   }
 }
 
+// 專案追蹤/取消追蹤
+async function toggleFollowStatus(req, res, next){
+  try{
+    const { project_id } = req.params;
+    const userId = req.user.id;
+
+    const userRepo = dataSource.getRepository("Users");
+    const projectRepo = dataSource.getRepository("Projects");
+    const followRepo = dataSource.getRepository("Follows");
+
+    const user = await userRepo.findOne({ where: {id: userId}});
+    const project = await projectRepo.findOne({ where: {id: project_id}});
+    if (!user || !project) {
+      return next(appError(404, '專案或使用者不存在'));
+    }
+
+    let followRecord = await followRepo.findOne({
+      where: {
+        user: { id: userId}, 
+        project: { id: project_id},
+      },
+      relations: ["user", "project"]
+    });
+
+    if (!followRecord){
+      followRecord = followRepo.create({
+        user, project, follow: true
+      });
+      await followRepo.save(followRecord);
+      return res.status(201).json({
+        message: '成功追蹤專案',
+        follow: true
+      });
+    }
+    followRecord.follow = !followRecord.follow;
+    await followRepo.save(followRecord);
+    return res.status(200).json({
+      message: followRecord.follow? '成功追蹤專案' : '取消追蹤專案',
+      follow: followRecord.follow
+    });
+  } catch (error){
+      logger.error('更新失敗', error);
+      next(error);
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
@@ -536,5 +582,6 @@ module.exports = {
   patchProfile,
   postProgress,
   putChangePassword,
-  updateProgress
+  updateProgress,
+  toggleFollowStatus
 };

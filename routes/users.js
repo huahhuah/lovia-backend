@@ -19,5 +19,6 @@ router.patch("/profile", auth, users.patchProfile);
 router.post("/projects/:project_id/progress", auth, users.postProgress);
 router.put('/:id/password', auth, users.putChangePassword);
 router.patch('/projects/:project_id/progress/:progress_id', auth, users.updateProgress);
+router.patch('/projects/:project_id/follow', auth, users.toggleFollowStatus);
 
 module.exports = router;
