@@ -25,6 +25,7 @@ async function getAllUsers(req, res, next){
         })
         const usefulInfo = users.map( user => ({
             account: user.account,
+            username: user.username,
             phone: user.phone,
             birthday: user.birthday,
             gender: user.gender?.gender || null,
