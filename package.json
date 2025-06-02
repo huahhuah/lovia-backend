@@ -25,6 +25,8 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "ecpay_aio_nodejs": "^1.2.2",
+    "ecpay-payment": "^1.1.1",
     "express": "^5.1.0",
     "firebase-admin": "^13.3.0",
     "form-data": "^4.0.2",
