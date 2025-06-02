@@ -9,11 +9,8 @@ const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
 const projectRouter = require("./routes/projects");
 const uploadRouter = require("./routes/upload");
-<<<<<<< Updated upstream
 const adminsRouter = require("./routes/admins");
-=======
 const linePayRoutes = require("./routes/linePay");
->>>>>>> Stashed changes
 
 const app = express();
 
