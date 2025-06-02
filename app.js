@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -8,7 +9,11 @@ const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
 const projectRouter = require("./routes/projects");
 const uploadRouter = require("./routes/upload");
+<<<<<<< Updated upstream
 const adminsRouter = require("./routes/admins");
+=======
+const linePayRoutes = require("./routes/linePay");
+>>>>>>> Stashed changes
 
 const app = express();
 
@@ -49,6 +54,7 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
 app.use("/api/v1/admins", adminsRouter);
+app.use("/api/v1/payments", linePayRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

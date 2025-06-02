@@ -40,6 +40,20 @@ module.exports = new EntitySchema({
     created_at: {
       type: "timestamp",
       createDate: true
+    },
+    paid_at: {
+      type: "timestamp",
+      nullable: true
+    },
+    payment_method: {
+      type: "varchar",
+      length: 20,
+      nullable: true
+    },
+    transaction_id: {
+      type: "varchar",
+      length: 100,
+      nullable: true
     }
   },
   relations: {
