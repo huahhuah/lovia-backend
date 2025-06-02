@@ -605,10 +605,9 @@ async function resetPassword(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     
-    // 重要：需要明確選擇 hashed_password 欄位，因為它設定了 select: false
     const user = await userRepository.findOne({ 
       where: { id: decoded.id },
-      select: ["id", "username", "account", "hashed_password"] // 明確選擇需要的欄位
+      select: ["id", "username", "account", "hashed_password"]
     });
 
     if (!user) {
@@ -626,7 +625,6 @@ async function resetPassword(req, res, next) {
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log('新密碼 hash:', hashedPassword.substring(0, 20) + '...');
 
-    // 正確的欄位名稱是 hashed_password
     user.hashed_password = hashedPassword;
 
     const savedUser = await userRepository.save(user);
@@ -635,7 +633,6 @@ async function resetPassword(req, res, next) {
       passwordUpdated: !!savedUser.hashed_password
     });
 
-    // 驗證密碼是否真的更新了
     const updatedUser = await userRepository.findOne({ 
       where: { id: decoded.id },
       select: ["id", "hashed_password"]
@@ -659,6 +656,52 @@ async function resetPassword(req, res, next) {
   }
 }
 
+// 專案追蹤/取消追蹤
+async function toggleFollowStatus(req, res, next){
+  try{
+    const { project_id } = req.params;
+    const userId = req.user.id;
+
+    const userRepo = dataSource.getRepository("Users");
+    const projectRepo = dataSource.getRepository("Projects");
+    const followRepo = dataSource.getRepository("Follows");
+
+    const user = await userRepo.findOne({ where: {id: userId}});
+    const project = await projectRepo.findOne({ where: {id: project_id}});
+    if (!user || !project) {
+      return next(appError(404, '專案或使用者不存在'));
+    }
+
+    let followRecord = await followRepo.findOne({
+      where: {
+        user: { id: userId}, 
+        project: { id: project_id},
+      },
+      relations: ["user", "project"]
+    });
+
+    if (!followRecord){
+      followRecord = followRepo.create({
+        user, project, follow: true
+      });
+      await followRepo.save(followRecord);
+      return res.status(201).json({
+        message: '成功追蹤專案',
+        follow: true
+      });
+    }
+    followRecord.follow = !followRecord.follow;
+    await followRepo.save(followRecord);
+    return res.status(200).json({
+      message: followRecord.follow? '成功追蹤專案' : '取消追蹤專案',
+      follow: followRecord.follow
+    });
+  } catch (error){
+      logger.error('更新失敗', error);
+      next(error);
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
@@ -669,5 +712,6 @@ module.exports = {
   putChangePassword,
   updateProgress,
   sendResetPasswordEmail,
-  resetPassword
+  resetPassword,
+  toggleFollowStatus
 };
