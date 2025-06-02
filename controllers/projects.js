@@ -156,7 +156,7 @@ async function getProject(req, res, next) {
     const projectRepository = dataSource.getRepository("Projects");
     const project = await projectRepository.findOne({
       where: { id: projectId },
-      relations: ["projectPlans"]
+      relations: ["projectPlans", "category"]
     });
 
     if (!project) {
@@ -172,7 +172,20 @@ async function getProject(req, res, next) {
       feedback_img: plan.feedback_img,
       delivery_date: plan.delivery_date
     }));
-
+    
+    let faq = [];
+    try {
+      if (project.faq) {
+        faq = JSON.parse(project.faq); // 解析 faq 字串為陣列
+        if (!Array.isArray(faq)) {
+          throw new Error("FAQ 格式不正確，必須為陣列");
+        }
+      }
+    } catch (error) {
+      logger.error("解析 FAQ 失敗", error);
+      faq = []; // 若解析失敗，設置為空陣列
+    }
+    
     const responseData = {
       title: project.title,
       summary: project.summary,
@@ -183,7 +196,7 @@ async function getProject(req, res, next) {
       cover: project.cover,
       full_content: project.full_content,
       project_team: project.project_team,
-      faq: project.faq || [],
+      faq: faq,
       plans
     };
 
@@ -219,7 +232,7 @@ async function updateProject(req, res, next) {
     const {
       title,
       summary,
-      category_id,
+      category,
       total_amount,
       start_time,
       end_time,
@@ -233,22 +246,25 @@ async function updateProject(req, res, next) {
     // 更新有變更的欄位
     if (title !== undefined) project.title = title;
     if (summary !== undefined) project.summary = summary;
+    if (category !== undefined) project.category = category.name;  //  這裡
     if (total_amount !== undefined) project.total_amount = Number(total_amount);
     if (start_time !== undefined) project.start_time = start_time;
     if (end_time !== undefined) project.end_time = end_time;
     if (cover !== undefined) project.cover = cover;
     if (full_content !== undefined) project.full_content = full_content;
     if (project_team !== undefined) project.project_team = project_team;
-    if (faq !== undefined) project.faq = faq;
-
+    if (faq !== undefined) {
+      project.faq = JSON.stringify(faq);
+    }  
     // 重新判斷 project_type（用更新後的 start_time, end_time）
     project.project_type = getProjectType(project.start_time, project.end_time);
-
+    
+    let newPlans = []
     if (Array.isArray(req.body.plans)) {
       // 刪除原來plan陣列
       await planRepo.delete({ project: { id: projectId } });
       // 建立新的plan陣列
-      const newPlans = req.body.plans.map(plan => {
+      newPlans = req.body.plans.map(plan => {
         return planRepo.create({
           plan_name: plan.plan_name,
           amount: Number(plan.amount),
@@ -256,15 +272,28 @@ async function updateProject(req, res, next) {
           feedback: plan.feedback,
           feedback_img: plan.feedback_img,
           delivery_date: plan.delivery_date,
-          project
+          project_id: { id: projectId }
         });
       });
       await planRepo.save(newPlans);
     }
+    const resData = {
+      title: project.title,
+      summary: project.summary,
+      category: project.category,
+      total_amount: project.total_amount,
+      start_time: project.start_time,
+      end_time: project.end_time,
+      cover: project.cover,
+      full_content: project.full_content,
+      project_team: project.project_team,
+      faq: project.faq || [],
+      newPlans
+    };
     const updateProject = await projectRepo.save(project);
     res.status(200).json({
       status: true,
-      data: { project_id: updateProject.id }
+      data: resData
     });
   } catch (error) {
     logger.error("更新失敗", error);
@@ -786,6 +815,77 @@ async function createProjectSponsorship(req, res, next) {
   }
 }
 
+// 取得單一專案faq
+async function getProjectFaq(req, res, next) {
+  try {
+    const { project_id } = req.params;
+    if(!project_id) {
+      return next(appError(400, '請求錯誤'))
+    }
+    const projectRepo = dataSource.getRepository("Projects");
+    const project = await projectRepo.findOne({
+      where: {id: project_id},
+    })
+    
+    let faq = [];
+    try{
+      if(project.faq) {
+        faq = JSON.parse(project.faq);
+        if (!Array.isArray(faq)){
+          throw new Error("FAQ 格式不正確，必須為陣列");
+        }
+      }
+    } catch (error) {
+      logger.error("解析 FAQ 失敗", error);
+      faq = [];
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得專案FAQ",
+      data: faq
+    })
+  } catch (error){
+    logger.error("取得FAQ失敗", error);
+    next(error);
+  }
+}
+
+// 取得單一專案留言
+async function getProjectComment(req, res, next){
+  try {
+    const { project_id } = req.params;
+    if (!project_id){
+      return next(appError(400,'請求錯誤'));
+    }
+    const commentRepo = dataSource.getRepository("ProjectComments");
+    const comments = await commentRepo.find({
+      where: {project: {id: project_id}},
+      order: {created_at: 'DESC'},
+      relations: ['project' , 'user'] 
+    })
+    // 擷取需要的回傳
+    const usefulData = comments.map(comment =>({
+      comment_id: comment.comment_id,
+      content: comment.content,
+      created_at: comment.created_at.toISOString(),
+      project:{ id: comment.project.id},
+      user:{
+        id: comment.user.id,
+        name: comment.user.username
+      }
+    }))
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得專案留言",
+      data: usefulData
+    })
+  } catch (error){
+    next(error);
+  }
+}
+
 module.exports = {
   createProject,
   createProjectPlan,
@@ -798,5 +898,7 @@ module.exports = {
   getProgress,
   createProjectComment,
   sponsorProjectPlan,
-  createProjectSponsorship
+  createProjectSponsorship,
+  getProjectFaq,
+  getProjectComment
 };

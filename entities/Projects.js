@@ -94,6 +94,11 @@ module.exports = new EntitySchema({
       type: "one-to-many",
       target: "ProjectPlans",
       inverseSide: "project"
+    },
+    follows: {
+      type: "one-to-many",
+      target: "Follows",
+      inverseSide: "project"
     }
   }
 });

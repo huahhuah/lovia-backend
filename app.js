@@ -8,6 +8,7 @@ const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
 const projectRouter = require("./routes/projects");
 const uploadRouter = require("./routes/upload");
+const adminsRouter = require("./routes/admins");
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
+app.use("/api/v1/admins", adminsRouter);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);
@@ -62,9 +64,8 @@ app.use((req, res, next) => {
   return;
 });
 
-// eslint-disable-next-line no-unused-vars
-//放在所有路由之後,統一處理錯誤
-app.use((err, req, res, next) => {
+// 放在所有路由之後，統一處理錯誤
+app.use((err, req, res, _next) => {
   if (!err) {
     err = new Error("未知錯誤");
   }
