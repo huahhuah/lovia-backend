@@ -4,7 +4,11 @@ const config = require("../config");
 const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("User");
 const generateJWT = require("../utils/generateJWT");
+const nodemailer = require("nodemailer");
+const smtpConfig = config.get("email.smtp");
+const frontendUrl = config.get("email.frontendBaseUrl");
 const jwtSecret = config.get("secret").jwtSecret;
+const jwt = require('jsonwebtoken');
 const {
   isUndefined,
   isNotValidString,
@@ -528,6 +532,133 @@ async function updateProgress(req, res, next){
   }
 }
 
+// 設定 nodemailer 寄信功能（以 Gmail 為例，可換成其他 smtp 設定）
+const transporter = nodemailer.createTransport({
+  host: smtpConfig.host,
+  port: smtpConfig.port,
+  secure: smtpConfig.secure,
+  auth: {
+    user: smtpConfig.user,
+    pass: smtpConfig.pass
+  }
+});
+
+// ✅ 忘記密碼：寄送 email 連結
+async function sendResetPasswordEmail(req, res, next) {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return next(appError(400, "請提供 email"));
+    }
+
+    const userRepository = dataSource.getRepository("Users");
+    const user = await userRepository.findOne({ where: { account: email } });
+
+    if (!user) {
+      return next(appError(404, "查無此 email 的帳號"));
+    }
+
+    const token = jwt.sign({ id: user.id }, jwtSecret, { expiresIn: "1h" });
+    const resetLink = `${frontendUrl}/#/reset-password/${token}`;
+
+    await transporter.sendMail({
+      from: `"系統通知" <${config.get("email").account}>`,
+      to: email,
+      subject: "密碼重設連結",
+      html: `
+        <p>您好，請點擊以下連結以重設密碼（連結有效時間為 1 小時）：</p>
+        <a href="${resetLink}">${resetLink}</a>
+      `
+    });
+
+    res.status(200).json({ message: "重設密碼連結已寄出" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ✅ 重設密碼：驗證 token 並更新密碼
+async function resetPassword(req, res, next) {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    console.log('重設密碼請求:', { token: token?.substring(0, 20) + '...', hasPassword: !!password });
+
+    if (!password) {
+      return next(appError(400, "請提供新密碼"));
+    }
+
+    const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
+    if (!passwordPattern.test(password)) {
+      return next(appError(400, "密碼需包含大小寫英文與數字，長度 8–16 字元"));
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, jwtSecret);
+      console.log('Token 解碼成功:', { userId: decoded.id, exp: new Date(decoded.exp * 1000) });
+    } catch (err) {
+      console.error('Token 驗證失敗:', err.message);
+      return next(appError(400, "連結已過期或無效"));
+    }
+
+    const userRepository = dataSource.getRepository("Users");
+    
+    // 重要：需要明確選擇 hashed_password 欄位，因為它設定了 select: false
+    const user = await userRepository.findOne({ 
+      where: { id: decoded.id },
+      select: ["id", "username", "account", "hashed_password"] // 明確選擇需要的欄位
+    });
+
+    if (!user) {
+      console.error('找不到使用者:', decoded.id);
+      return next(appError(404, "找不到使用者"));
+    }
+
+    console.log('找到使用者:', { 
+      id: user.id, 
+      username: user.username,
+      account: user.account,
+      hasCurrentPassword: !!user.hashed_password 
+    });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log('新密碼 hash:', hashedPassword.substring(0, 20) + '...');
+
+    // 正確的欄位名稱是 hashed_password
+    user.hashed_password = hashedPassword;
+
+    const savedUser = await userRepository.save(user);
+    console.log('使用者已保存:', { 
+      id: savedUser.id,
+      passwordUpdated: !!savedUser.hashed_password
+    });
+
+    // 驗證密碼是否真的更新了
+    const updatedUser = await userRepository.findOne({ 
+      where: { id: decoded.id },
+      select: ["id", "hashed_password"]
+    });
+    
+    const passwordMatches = updatedUser.hashed_password === hashedPassword;
+    console.log('資料庫驗證 - 密碼已更新:', passwordMatches);
+
+    if (!passwordMatches) {
+      console.error('警告：密碼更新後驗證失敗');
+      return next(appError(500, "密碼更新失敗，請稍後再試"));
+    }
+
+    res.status(200).json({ 
+      message: "密碼已成功更新",
+      success: true 
+    });
+  } catch (err) {
+    console.error('重設密碼發生錯誤:', err);
+    next(err);
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
@@ -536,5 +667,7 @@ module.exports = {
   patchProfile,
   postProgress,
   putChangePassword,
-  updateProgress
+  updateProgress,
+  sendResetPasswordEmail,
+  resetPassword
 };
