@@ -6,5 +6,5 @@ module.exports = {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  frontendBaseUrl: process.env.FRONTEND_BASE_URL || 'http://localhost:5173'
+  frontendBaseUrl: process.env.FRONTEND_BASE_URL || 'http://localhost:5173',
 };
