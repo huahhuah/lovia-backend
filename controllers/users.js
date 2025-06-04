@@ -554,6 +554,7 @@ async function patchRole(req, res, next){
     });
 
     user.role = proposerRole;
+
     await userRepo.save(user);
 
     res.status(200).json({
