@@ -528,6 +528,37 @@ async function updateProgress(req, res, next){
   }
 }
 
+// 角色由使用者變成提案者
+async function patchRole(req, res, next){
+  const { user_id } = req.params;
+  try{
+    if(!req.user || !req.user.id) {
+      return next(appError(401,'未授權，token錯誤'));
+    }
+    if(req.user.role_id === 2){
+      return next(appError(400,'你已經是提案者了'));
+    }
+    const userRepo = dataSource.getRepository("Users");
+    const user = await userRepo.findOne({
+      where: {id: user_id},
+      relations: ['role']
+    })
+    if (!user_id) {
+      return next(appError(400, '無此使用者'))
+    }
+    user.role_id = 2;
+    await userRepo.save(user);
+
+    res.status(200).json({
+      status: true,
+      message: '角色更新為提案者',
+      data: user
+    })
+  } catch (error){
+    next(error);
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
@@ -536,5 +567,6 @@ module.exports = {
   patchProfile,
   postProgress,
   putChangePassword,
-  updateProgress
+  updateProgress,
+  patchRole
 };
