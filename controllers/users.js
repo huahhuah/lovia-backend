@@ -17,6 +17,7 @@ const bcrypt = require("bcrypt");
 const appError = require("../utils/appError");
 const { getRepository } = require("typeorm");
 const { RelationLoader } = require("typeorm/query-builder/RelationLoader.js");
+const { app } = require("firebase-admin");
 const auth = require("../middlewares/auth")({
   secret: jwtSecret,
   userRepository: dataSource.getRepository("Users"),
@@ -112,7 +113,6 @@ async function postLogin(req, res, next) {
       logger.warn("密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字");
       return next(appError(400, "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"));
     }
-
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
       select: ["id", "username", "hashed_password", "role"],
@@ -529,6 +529,50 @@ async function updateProgress(req, res, next){
   }
 }
 
+// 使用者提出申請
+async function postApplication(req, res, next){
+  const user_id = req.user.id;
+  const { url, funding_account } = req.body;
+  if(!user_id){
+    return next(appError(400,'無此使用者'));
+  }
+  try{
+    const userRepo = dataSource.getRepository("Users");
+    const applyUser = await userRepo.findOne({
+      where: {id: user_id},
+    });
+    if(!applyUser){
+      return next(app(404,'找不到使用者'))
+    }
+    if (applyUser.role_type === 2){
+      return next(appError(400,'你已是提案者'));
+    }
+    const proposerRepo = dataSource.getRepository("Proposers");
+    const newApplication = await proposerRepo.create({
+      user_id,
+      url,
+      funding_account,
+      status: 1
+    });
+    await proposerRepo.save(newApplication);
+    const result = await proposerRepo.findOne({
+      where: {user_id},
+      relations: ["proposerStatuses"]
+    })
+    res.status(200).json({
+      status: true,
+      message: "申請已提出",
+      data: result
+    })
+
+  } catch (error){
+    logger.error('申請失敗', error);
+    next (error);
+  }
+  
+
+}
+
 // 角色由使用者變成提案者
 async function patchRole(req, res, next){
   const { user_id } = req.params;
@@ -576,5 +620,6 @@ module.exports = {
   postProgress,
   putChangePassword,
   updateProgress,
+  postApplication,
   patchRole
 };
