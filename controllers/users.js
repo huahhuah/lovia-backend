@@ -16,6 +16,7 @@ const {
 const bcrypt = require("bcrypt");
 const appError = require("../utils/appError");
 const { getRepository } = require("typeorm");
+const { RelationLoader } = require("typeorm/query-builder/RelationLoader.js");
 const auth = require("../middlewares/auth")({
   secret: jwtSecret,
   userRepository: dataSource.getRepository("Users"),
@@ -546,7 +547,14 @@ async function patchRole(req, res, next){
     if (!user_id) {
       return next(appError(400, '無此使用者'))
     }
-    user.role_id = 2;
+
+    const roleRepo = dataSource.getRepository("Roles");
+    const proposerRole = await roleRepo.findOne({
+      where: { id: 2}
+    });
+
+    user.role = proposerRole;
+
     await userRepo.save(user);
 
     res.status(200).json({

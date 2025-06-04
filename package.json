@@ -12,7 +12,7 @@
     "test:unit": "node --experimental-vm-modules node_modules/.bin/jest --config ./jest.config.js --coverage --roots ./test/unit",
     "test:integration": "node --experimental-vm-modules node_modules/.bin/jest --testSequencer=./test/sequencer -i --config ./jest.config.js --coverage --roots ./test/integration",
     "init:schema": "typeorm schema:sync -d ./db/data-source.js",
-     "seed:invoice-types": "node scripts/seedInvoiceTypes.js"
+    "seed:invoice-types": "node scripts/seedInvoiceTypes.js"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +25,8 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "ecpay_aio_nodejs": "^1.2.2",
+    "ecpay-payment": "^1.1.1",
     "express": "^5.1.0",
     "firebase-admin": "^13.3.0",
     "form-data": "^4.0.2",
@@ -35,6 +37,7 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
     "node-cron": "^4.0.5",
+    "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
     "pg": "^8.15.6",
     "pino": "^9.6.0",

@@ -90,6 +90,10 @@ module.exports = new EntitySchema({
     proposer: {
       type: "one-to-one",
       target: "Proposers",
+    },
+    follows: {
+      type: "one-to-many",
+      target: "Follows",
       inverseSide: "user"
     }
   }
