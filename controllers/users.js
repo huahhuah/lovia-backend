@@ -531,10 +531,16 @@ async function updateProgress(req, res, next){
 
 // 使用者提出申請
 async function postApplication(req, res, next){
-  const user_id = req.user.id;
+  const user_id = req.user?.id;
   const { url, funding_account } = req.body;
   if(!user_id){
-    return next(appError(400,'無此使用者'));
+    return next(appError(401,'未授權的存取'));
+  }
+  if (!url || !funding_account){
+    return next(appError(400,'請完整填寫申請資料'));
+  }
+  if (isNotValidUrl(url)){ 
+    return next(appError(400,'請填入完整網址'));
   }
   try{
     const userRepo = dataSource.getRepository("Users");
@@ -542,7 +548,7 @@ async function postApplication(req, res, next){
       where: {id: user_id},
     });
     if(!applyUser){
-      return next(app(404,'找不到使用者'))
+      return next(appError(404,'找不到使用者'))
     }
     if (applyUser.role_type === 2){
       return next(appError(400,'你已是提案者'));
@@ -564,13 +570,10 @@ async function postApplication(req, res, next){
       message: "申請已提出",
       data: result
     })
-
   } catch (error){
     logger.error('申請失敗', error);
     next (error);
   }
-  
-
 }
 
 // 角色由使用者變成提案者
