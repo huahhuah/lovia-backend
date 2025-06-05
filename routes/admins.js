@@ -12,5 +12,6 @@ const auth = require("../middlewares/auth")({
 });
 
 router.get("/users", auth, admins.getAllUsers);
+router.get("/proposerApplication", auth, admins.getProposerApplication);
 
 module.exports = router;

@@ -7,6 +7,7 @@ const generateJWT = require("../utils/generateJWT");
 const jwtSecret = config.get("secret").jwtSecret;
 const appError = require("../utils/appError");
 
+// 取得所有使用者資料
 async function getAllUsers(req, res, next){
     try{
         const { page = 1 } = req.query; // 預設
@@ -54,6 +55,28 @@ async function getAllUsers(req, res, next){
     }
 }
 
+// 取得募資者轉提案者的申請表
+async function getProposerApplication(req, res, next){
+    try{
+        if(req.user.role_id !== 3){
+            return next(appError(401, '你沒有查看的權限'));
+        }
+        const proposerRepo = dataSource.getRepository("Proposers");
+        const result = await proposerRepo.find({
+            where: {status : 1},
+            relations: ["user", "proposerStatuses"]
+        });
+        res.status(200).json({
+            status: true,
+            message: '成功取得申請資料',
+            data: result
+        })
+    } catch(error) {
+        next(error);
+    }
+}
+
 module.exports = {
     getAllUsers,
+    getProposerApplication
 }
