@@ -6,6 +6,7 @@ const logger = require("../utils/logger");
 const generateJWT = require("../utils/generateJWT");
 const jwtSecret = config.get("secret").jwtSecret;
 const appError = require("../utils/appError");
+const Proposer_statuses = require("../entities/Proposer_statuses");
 
 // 取得所有使用者資料
 async function getAllUsers(req, res, next){
@@ -76,7 +77,45 @@ async function getProposerApplication(req, res, next){
     }
 }
 
+// 修改募資者轉提案者
+async function patchProposerStatus(req, res, next){
+    const payload = req.body;
+    if(!Array.isArray(payload)){
+        return next(appError(400, '傳入資料格式有誤'));
+    }
+    try {
+        const userRepo = dataSource.getRepository("Users");
+        const proposerRepo = dataSource.getRepository("Proposers");
+
+        for (const item of payload){
+            const { user_id, new_status} = item;
+            const status_id = parseInt(new_status, 10);
+            
+            if (new_status === "2"){
+                await userRepo.update(
+                    { id: user_id },
+                    { role_id:2 }
+                );
+            }
+            
+            await proposerRepo.update(
+                { user_id },
+                {
+                    status: status_id,
+                    updated_at: new Date()
+                });
+            }
+            res.status(200).json({
+                status: true,
+                message: '修改成功',
+            })
+        } catch(error){
+            next (error)
+        }
+}
+
 module.exports = {
     getAllUsers,
-    getProposerApplication
+    getProposerApplication,
+    patchProposerStatus
 }
