@@ -20,6 +20,5 @@ router.post("/projects/:project_id/progress", auth, users.postProgress);
 router.put('/:id/password', auth, users.putChangePassword);
 router.patch('/projects/:project_id/progress/:progress_id', auth, users.updateProgress);
 router.post('/postApplication', auth, users.postApplication);
-router.patch('/:user_id/role', auth, users.patchRole);
 
 module.exports = router;
