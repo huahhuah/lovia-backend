@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+
 const config = require("../config/index");
 const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("Auth");
@@ -23,7 +24,7 @@ router.get("/:project_id/progresses", projects.getProgress);
 router.post("/:project_id/comments", auth, projects.createProjectComment);
 router.post("/:project_id/plans/:plan_id/sponsor", auth, projects.sponsorProjectPlan);
 router.post("/:project_id/plans/:plan_id/sponsor-entry", auth, projects.createProjectSponsorship);
-router.get('/:project_id/faq', projects.getProjectFaq);
-router.get('/:project_id/comments', projects.getProjectComment);
+router.get("/:project_id/faq", projects.getProjectFaq);
+router.get("/:project_id/comments", projects.getProjectComment);
 
 module.exports = router;

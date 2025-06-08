@@ -3,14 +3,16 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const pinoHttp = require("pino-http");
-const env = require("dotenv").config();
 
 const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
 const projectRouter = require("./routes/projects");
 const uploadRouter = require("./routes/upload");
 const adminsRouter = require("./routes/admins");
+const ordersRouter = require("./routes/orders");
+const webhookRouter = require("./routes/webhooks");
 const linePayRoutes = require("./routes/linePay");
+const paymentRoutes = require("./routes/payments");
 
 const app = express();
 
@@ -51,7 +53,10 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
 app.use("/api/v1/admins", adminsRouter);
-app.use("/api/v1/payments", linePayRoutes);
+app.use("/api/v1/users/orders", ordersRouter);
+app.use("/api/v1/webhooks", webhookRouter);
+app.use("/api/v1/linepay", linePayRoutes);
+app.use("/api/v1", paymentRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

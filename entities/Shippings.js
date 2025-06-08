@@ -1,4 +1,4 @@
-const { EntitySchema } = require("typeorm");
+const { EntitySchema, JoinColumn } = require("typeorm");
 
 module.exports = new EntitySchema({
   name: "Shippings",
@@ -29,6 +29,7 @@ module.exports = new EntitySchema({
     sponsorship: {
       type: "one-to-one",
       target: "Sponsorships",
+      inverseSide: "shipping",
       joinColumn: { name: "sponsorship_id" }
     }
   }

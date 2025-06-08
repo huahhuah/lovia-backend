@@ -11,7 +11,8 @@ module.exports = new EntitySchema({
     },
     code: {
       type: "varchar",
-      length: 20
+      length: 20,
+      unique: true
     },
     label: {
       type: "varchar",
@@ -22,7 +23,9 @@ module.exports = new EntitySchema({
     invoices: {
       type: "one-to-many",
       target: "Invoices",
-      inverseSide: "type"
+      inverseSide: "type",
+      cascade: false,
+      onDelete: "RESTRICT"
     }
   }
 });
