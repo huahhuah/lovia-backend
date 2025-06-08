@@ -32,9 +32,18 @@ function createTradeSha(tradeInfo) {
   return crypto.createHash("sha256").update(raw).digest("hex").toUpperCase();
 }
 
+function decryptTradeInfo(tradeInfo) {
+  const decipher = crypto.createDecipheriv("aes-256-cbc", HASH_KEY, HASH_IV);
+  decipher.setAutoPadding(true);
+  let decoded = decipher.update(tradeInfo, "hex", "utf8");
+  decoded += decipher.final("utf8");
+  return Object.fromEntries(new URLSearchParams(decoded));
+}
+
 module.exports = {
   cleanItemDesc,
   stringifyDataForNewebpay,
   encryptTradeInfo,
-  createTradeSha
+  createTradeSha,
+  decryptTradeInfo
 };
