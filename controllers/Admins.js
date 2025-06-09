@@ -26,6 +26,7 @@ async function getAllUsers(req, res, next){
             relations: ["gender", "role", "status"]
         })
         const usefulInfo = users.map( user => ({
+            id: user.id,
             account: user.account,
             username: user.username,
             phone: user.phone,
@@ -54,6 +55,30 @@ async function getAllUsers(req, res, next){
     } catch (error) {
         next (error);
     }
+}
+
+// 取得會員詳情
+async function getUsersInfo(req, res, next){
+    const { user_id } = req.params;
+    console.log(user_id);
+    if(req.user.role_id !== 3){
+        return next(appError(401, '你沒有察看的權限'));
+    }
+    try{
+        const userRepo = dataSource.getRepository("Users");
+        const userInfo = await userRepo.findOne({
+            where: { id: user_id },
+            relations: ["role","gender","status"]
+        });
+        res.status(200).json({
+            status: true,
+            message: '成功取得使用者資料',
+            data: userInfo
+        });
+    } catch (error){
+        next(error);
+    }
+
 }
 
 // 取得募資者轉提案者的申請表
@@ -116,6 +141,7 @@ async function patchProposerStatus(req, res, next){
 
 module.exports = {
     getAllUsers,
+    getUsersInfo,
     getProposerApplication,
     patchProposerStatus
 }
