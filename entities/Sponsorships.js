@@ -1,7 +1,9 @@
 const { EntitySchema } = require("typeorm");
+
 module.exports = new EntitySchema({
   name: "Sponsorships",
-  tableName: "SPONSORSHIPS",
+  tableName: "sponsorships",
+
   columns: {
     id: {
       primary: true,
@@ -75,6 +77,7 @@ module.exports = new EntitySchema({
       joinColumn: { name: "plan_id" },
       eager: true
     },
+
     shipping: {
       type: "one-to-one",
       target: "Shippings",
@@ -86,6 +89,7 @@ module.exports = new EntitySchema({
     invoice: {
       type: "one-to-one",
       target: "Invoices",
+      joinColumn: { name: "invoice_id" },
       inverseSide: "sponsorship",
       cascade: true,
       onDelete: "CASCADE",
