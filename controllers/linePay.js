@@ -45,7 +45,7 @@ async function handleLinePayRequest(req, res, next) {
     //建立 LINE Pay 請求
     const uri = "/v3/payments/request";
     const nonce = uuidv4();
-    const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
+    const BACKEND_URL = process.env.BACKEND_URL;
     const requestBody = {
       amount,
       currency: CURRENCY,
