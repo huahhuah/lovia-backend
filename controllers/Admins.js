@@ -150,7 +150,7 @@ async function patchProposerStatus(req, res, next){
             if (status_id === 2){
                 message = `您好，有關您於${created_at}申請成為提案者一事，已通過審核，\n歡迎登入平台讓改變開始，讓夢想成真。`;
             } else if (status_id ===3){
-                message = `您好，有關您於${created_at}申請成為提案者一事，未通過審核，\n原因：${ reason || "未提供原因"}`;
+                message = `您好，有關您於${created_at}申請成為提案者一事，未通過審核。\n原因：${ reason || "未提供原因"}`;
             } else {
                 continue;
             }
