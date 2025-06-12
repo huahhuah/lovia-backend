@@ -31,6 +31,7 @@
     "firebase-admin": "^13.3.0",
     "form-data": "^4.0.2",
     "formidable": "^3.5.4",
+    "googleapis": "^150.0.1",
     "image-type": "^4.1.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",

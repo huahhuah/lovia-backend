@@ -7,6 +7,7 @@ const generateJWT = require("../utils/generateJWT");
 const jwtSecret = config.get("secret").jwtSecret;
 const appError = require("../utils/appError");
 const Proposer_statuses = require("../entities/Proposer_statuses");
+const sendEmail = require("../services/email");
 
 // 取得所有使用者資料
 async function getAllUsers(req, res, next){
@@ -113,7 +114,7 @@ async function patchProposerStatus(req, res, next){
         const proposerRepo = dataSource.getRepository("Proposers");
 
         for (const item of payload){
-            const { user_id, new_status} = item;
+            const { user_id, new_status, reason } = item;
             const status_id = parseInt(new_status, 10);
             
             if (new_status === "2"){
@@ -124,11 +125,42 @@ async function patchProposerStatus(req, res, next){
             }
             
             await proposerRepo.update(
-                { user_id },
+                { user_id: user_id },
                 {
                     status: status_id,
+                    reason: reason || null,
                     updated_at: new Date()
                 });
+            
+            const proposer = await proposerRepo.findOneBy({ user_id: user_id });
+
+            const created_at = new Date(proposer.created_at).toLocaleString("zh-TW", {
+                timeZone: "Asia/Taipei",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+              });
+
+            const user = await userRepo.findOneBy({ id: user_id });
+            if (!user || !user.account) continue;
+
+            // email通知
+            let subject = '申請成為提案者──審核結果通知';
+            let message = '';
+            if (status_id === 2){
+                message = `您好，有關您於${created_at}申請成為提案者一事，已通過審核，\n歡迎登入平台讓改變開始，讓夢想成真。`;
+            } else if (status_id ===3){
+                message = `您好，有關您於${created_at}申請成為提案者一事，未通過審核，\n原因：${ reason || "未提供原因"}`;
+            } else {
+                continue;
+            }
+
+            await sendEmail({
+                to: user.account,
+                subject: subject,
+                message,
+            });
+
             }
             res.status(200).json({
                 status: true,

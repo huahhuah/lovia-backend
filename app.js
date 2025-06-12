@@ -13,6 +13,7 @@ const ordersRouter = require("./routes/orders");
 const webhookRouter = require("./routes/webhooks");
 const linePayRoutes = require("./routes/linePay");
 const paymentRoutes = require("./routes/payments");
+const emailRoutes = require("./routes/email");
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use("/api/v1/users/orders", ordersRouter);
 app.use("/api/v1/webhooks", webhookRouter);
 app.use("/api/v1/linepay", linePayRoutes);
 app.use("/api/v1", paymentRoutes);
+app.use("/api/v1", emailRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);
