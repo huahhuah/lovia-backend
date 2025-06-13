@@ -529,7 +529,7 @@ async function updateProgress(req, res, next){
   }
 }
 
-// 使用者提出申請
+// 使用者提出申請成為提案者
 async function postApplication(req, res, next){
   const user_id = req.user?.id;
   const { url, funding_account } = req.body;
@@ -554,13 +554,25 @@ async function postApplication(req, res, next){
       return next(appError(400,'你已是提案者'));
     }
     const proposerRepo = dataSource.getRepository("Proposers");
-    const newApplication = await proposerRepo.create({
-      user_id,
-      url,
-      funding_account,
-      status: 1
+
+    let existing = await proposerRepo.findOne({
+      where: {id: user_id};
+    })
+    if (existing){
+      existing.url = url;
+      existing.funding_account = funding_account;
+      existing.status = 1;
+      existing.created_at = new Date();
+      await proposerRepo.save(existing)
+    } else {
+      const newApplication = await proposerRepo.create({
+        user_id,
+        url,
+        funding_account,
+        status: 1
     });
     await proposerRepo.save(newApplication);
+  }
     const result = await proposerRepo.findOne({
       where: {user_id},
       relations: ["proposerStatuses"]
