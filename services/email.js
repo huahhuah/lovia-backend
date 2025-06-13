@@ -15,7 +15,7 @@ oAuth2Client.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN });
 
 async function sendEmail({ to, subject, message }) {
   if (!to || !subject || !message) {
-    throw new Error('Missing required email fields');
+    throw new Error('欄位未完整填寫');
   }
 
   const accessToken = await oAuth2Client.getAccessToken();
