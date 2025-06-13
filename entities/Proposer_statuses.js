@@ -20,8 +20,7 @@ module.exports = new EntitySchema({
         proposers: {
             type:"one-to-many",
             target: "Proposers",
-            joinColumn: { name: "status_type"},
-            inverseSide: "prposerStatuses"
+            inverseSide: "prpposerStatuses"
         }
     }
 })

@@ -18,6 +18,7 @@ const appError = require("../utils/appError");
 const { getRepository } = require("typeorm");
 const { RelationLoader } = require("typeorm/query-builder/RelationLoader.js");
 const { app } = require("firebase-admin");
+const Proposer_statuses = require("../entities/Proposer_statuses");
 const auth = require("../middlewares/auth")({
   secret: jwtSecret,
   userRepository: dataSource.getRepository("Users"),
@@ -556,8 +557,8 @@ async function postApplication(req, res, next){
     const proposerRepo = dataSource.getRepository("Proposers");
 
     let existing = await proposerRepo.findOne({
-      where: {id: user_id};
-    })
+      where: {user_id}
+    });
     if (existing){
       existing.url = url;
       existing.funding_account = funding_account;
@@ -569,7 +570,7 @@ async function postApplication(req, res, next){
         user_id,
         url,
         funding_account,
-        status: 1
+        proposerStatuses: { id: 1 }
     });
     await proposerRepo.save(newApplication);
   }
