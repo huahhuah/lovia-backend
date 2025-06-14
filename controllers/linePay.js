@@ -7,10 +7,15 @@ const appError = require("../utils/appError");
 const { sendSponsorSuccessEmail } = require("../utils/sendSponsorSuccessEmail");
 const { sendInvoiceEmail } = require("../utils/sendInvoiceEmail");
 
-const LINEPAY_BASE_URL = "https://sandbox-api-pay.line.me";
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
+const SITE_URL = process.env.SITE_URL || "http://localhost:5173";
+const LINEPAY_BASE_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://api-pay.line.me"
+    : "https://sandbox-api-pay.line.me";
+
 const CHANNEL_ID = process.env.LINEPAY_CHANNEL_ID;
 const CHANNEL_SECRET = process.env.LINEPAY_CHANNEL_SECRET;
-const SITE_URL = process.env.SITE_URL || "http://localhost:5173";
 const CURRENCY = "TWD";
 
 // [1] 使用者點擊付款 → 建立 LINE Pay 請求
@@ -30,22 +35,13 @@ async function handleLinePayRequest(req, res, next) {
       relations: ["user"]
     });
 
-    if (!sponsorship) {
-      return next(appError(404, "找不到該訂單"));
-    }
+    if (!sponsorship) return next(appError(404, "找不到該訂單"));
+    if (sponsorship.user.id !== req.user.id) return next(appError(403, "無權操作此訂單"));
+    if (sponsorship.payment_status === "paid") return next(appError(400, "訂單已付款"));
 
-    if (sponsorship.user.id !== req.user.id) {
-      return next(appError(403, "無權操作此訂單"));
-    }
-
-    if (sponsorship.status !== "pending") {
-      return next(appError(400, "訂單已付款或無法再次付款"));
-    }
-
-    //建立 LINE Pay 請求
     const uri = "/v3/payments/request";
     const nonce = uuidv4();
-    const BACKEND_URL = process.env.BACKEND_URL;
+
     const requestBody = {
       amount,
       currency: CURRENCY,
@@ -80,7 +76,7 @@ async function handleLinePayRequest(req, res, next) {
     return res.status(200).json({
       status: true,
       message: "建立付款請求成功",
-      data: { payment_url: paymentUrl }
+      data: { paymentUrl }
     });
   } catch (err) {
     console.error("LINE Pay 請求失敗:", {
@@ -96,17 +92,15 @@ async function handleLinePayRequest(req, res, next) {
 async function handleLinePayConfirm(req, res, next) {
   try {
     const { transactionId, orderId } = req.query;
-    if (!transactionId || !orderId) {
-      return next(appError(400, "缺少必要參數"));
-    }
+    if (!transactionId || !orderId) return next(appError(400, "缺少必要參數"));
 
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
     const sponsorship = await sponsorshipRepo.findOne({ where: { order_uuid: orderId } });
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
-    if (sponsorship.status === "paid") {
+    if (sponsorship.payment_status === "paid" && sponsorship.transaction_id === transactionId) {
       return res.redirect(
-        `${SITE_URL}/#/payment/PaymentResult?orderId=${orderId}&transactionId=${transactionId}`
+        `${SITE_URL}/#/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`
       );
     }
 
@@ -115,7 +109,7 @@ async function handleLinePayConfirm(req, res, next) {
     const confirmBody = { amount: sponsorship.amount, currency: CURRENCY };
     const signature = generateLinePaySignature(uri, confirmBody, nonce, CHANNEL_SECRET);
 
-    await axios.post(`${LINEPAY_BASE_URL}${uri}`, confirmBody, {
+    const confirmResponse = await axios.post(`${LINEPAY_BASE_URL}${uri}`, confirmBody, {
       headers: {
         "Content-Type": "application/json",
         "X-LINE-ChannelId": CHANNEL_ID,
@@ -124,7 +118,8 @@ async function handleLinePayConfirm(req, res, next) {
       }
     });
 
-    sponsorship.status = "paid";
+    sponsorship.payment_status = "paid";
+    sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     sponsorship.paid_at = new Date();
     sponsorship.transaction_id = transactionId;
     sponsorship.payment_method = "LINE_PAY";
@@ -135,8 +130,7 @@ async function handleLinePayConfirm(req, res, next) {
     const invoice = await invoiceRepo.findOneBy({ sponsorship_id: sponsorship.id });
     if (invoice) await sendInvoiceEmail(sponsorship, invoice);
 
-    const siteUrl = process.env.SITE_URL || "http://localhost:5173";
-    const redirectUrl = `${siteUrl}/#/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`;
+    const redirectUrl = `${SITE_URL}/#/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error("LINE Pay Confirm 發生錯誤:", err?.response?.data || err.message);
@@ -157,7 +151,7 @@ async function handleClientConfirm(req, res) {
     const sponsorship = await sponsorshipRepo.findOneBy({ order_uuid: orderId });
 
     if (!sponsorship) return res.status(404).json({ status: false, message: "找不到訂單" });
-    if (sponsorship.status !== "paid") {
+    if (sponsorship.payment_status !== "paid") {
       return res.status(400).json({ status: false, message: "訂單尚未付款" });
     }
 
@@ -165,7 +159,7 @@ async function handleClientConfirm(req, res) {
       status: true,
       info: {
         transactionId,
-        transactionStatus: sponsorship.status,
+        transactionStatus: sponsorship.payment_status,
         orderId: sponsorship.order_uuid,
         amount: sponsorship.amount,
         paidAt: sponsorship.paid_at,
