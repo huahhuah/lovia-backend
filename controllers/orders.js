@@ -1,5 +1,5 @@
 const { handleLinePayRequest } = require("./linePay");
-const { createNewebpayPayment } = require("./newebpay");
+const { createEcpayPayment } = require("./ecpay");
 const appError = require("../utils/appError");
 const { dataSource } = require("../db/data-source");
 
@@ -13,7 +13,12 @@ async function createPaymentRequest(req, res, next) {
     return next(appError(400, "缺少訂單 ID"));
   }
 
-  const normalizedType = payment_type === "card" ? "credit" : payment_type;
+  if (!payment_type) {
+    return next(appError(400, "缺少付款方式"));
+  }
+
+  const normalizedType = payment_type === "card" ? "credit" : payment_type?.toLowerCase();
+
   if (!supportedTypes.includes(normalizedType)) {
     return next(appError(400, `不支援的付款方式：${payment_type}`));
   }
@@ -21,12 +26,12 @@ async function createPaymentRequest(req, res, next) {
   // 將 order_id 合併進 body 傳入原 controller
   req.body.orderId = order_id;
 
-  if (payment_type === "linepay") {
+  if (normalizedType === "linepay") {
     return handleLinePayRequest(req, res, next);
   }
 
-  if (payment_type === "credit" || payment_type === "atm") {
-    return createNewebpayPayment(req, res, next);
+  if (normalizedType === "credit" || payment_type === "atm") {
+    return createEcpayPayment(req, res, next);
   }
   return next(appError(400, "付款類型處理失敗"));
 }

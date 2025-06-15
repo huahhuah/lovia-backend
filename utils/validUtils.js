@@ -32,16 +32,30 @@ function isTooLong(str, maxLength) {
   return typeof str === "string" && str.length > maxLength;
 }
 
-
-function isValidBirthday(value){
-  const date = new Date(value);
-  const today = new Date();
-  if (isNaN(date.getTime())){
+function isValidBirthday(dateStr) {
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!regex.test(dateStr)) {
+    console.warn("❌ 生日格式不符合 YYYY-MM-DD");
     return false;
   }
-  today.setHours(0,0,0,0);
-  date.setHours(0,0,0,0);
-  return date < today;
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  const isValidDate =
+    date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+
+  if (!isValidDate) {
+    console.warn(" 日期無效：可能是不存在的日期");
+  } else if (date > today) {
+    console.warn(" 日期超出今天");
+  }
+
+  return isValidDate && date <= today;
 }
 
 function isValidImage(url) {

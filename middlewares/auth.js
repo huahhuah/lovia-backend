@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-const PERMISSION_DENIED_STATUS_CODE = 401;
+const PERMISSION_DENIED = 401;
 const FailedMessageMap = {
   expired: "Token 已過期",
   invalid: "無效的 token",
@@ -13,77 +13,76 @@ function generateError(status, message) {
   return error;
 }
 
-function formatVerifyError(jwtError) {
-  let result;
-  switch (jwtError.name) {
-    case "TokenExpiredError":
-      result = generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.expired);
-      break;
-    default:
-      result = generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.invalid);
-      break;
+function formatVerifyError(error) {
+  if (error.name === "TokenExpiredError") {
+    return generateError(PERMISSION_DENIED, FailedMessageMap.expired);
   }
-  return result;
+  return generateError(PERMISSION_DENIED, FailedMessageMap.invalid);
 }
 
 function verifyJWT(token, secret) {
   return new Promise((resolve, reject) => {
-    jwt.verify(token, secret, (error, decoded) => {
-      if (error) {
-        reject(formatVerifyError(error));
-      } else {
-        resolve(decoded);
-      }
+    jwt.verify(token, secret, (err, decoded) => {
+      if (err) return reject(formatVerifyError(err));
+      resolve(decoded);
     });
   });
 }
 
 module.exports = ({ secret, userRepository, logger = console }) => {
   if (!secret || typeof secret !== "string") {
-    logger.error("[AuthV2] secret is required and must be a string.");
-    throw new Error("[AuthV2] secret is required and must be a string.");
+    logger.error("[Auth] secret 必須是 string");
+    throw new Error("[Auth] secret 必須是 string");
   }
-  if (
-    !userRepository ||
-    typeof userRepository !== "object" ||
-    typeof userRepository.findOneBy !== "function"
-  ) {
-    logger.error("[AuthV2] userRepository is required and must be a function.");
-    throw new Error("[AuthV2] userRepository is required and must be a function.");
+
+  if (!userRepository || typeof userRepository.findOne !== "function") {
+    logger.error("[Auth] userRepository.findOne 必須是 function");
+    throw new Error("[Auth] userRepository.findOne 必須是 function");
   }
+
   return async (req, res, next) => {
-    if (
-      !req.headers ||
-      !req.headers.authorization ||
-      !req.headers.authorization.startsWith("Bearer")
-    ) {
-      logger.warn("[AuthV2] Missing authorization header.");
-      //請先登入
-      next(generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.missing));
-      return;
+    const authHeader = req.headers?.authorization || "";
+
+    if (!authHeader.startsWith("Bearer ")) {
+      logger.warn("[Auth] Authorization header 不存在或格式錯誤");
+      return next(generateError(PERMISSION_DENIED, FailedMessageMap.missing));
     }
-    const [, token] = req.headers.authorization.split(" ");
+
+    const token = authHeader.split(" ")[1];
     if (!token) {
-      logger.warn("[AuthV2] Missing token.");
-      //404 請先登入
-      next(generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.missing));
-      return;
+      logger.warn("[Auth] 未提供 token");
+      return next(generateError(PERMISSION_DENIED, FailedMessageMap.missing));
     }
+
     try {
-      //驗證 token
-      const verifyResult = await verifyJWT(token, secret);
-      //在資料庫尋找對應 id 的使用者
-      const user = await userRepository.findOneBy({ id: verifyResult.id });
+      const decoded = await verifyJWT(token, secret);
+
+      // ✅ 改用 findOne + relations 取得 role 資訊
+      const user = await userRepository.findOne({
+        where: { id: decoded.id },
+        relations: ["role"]
+      });
+
       if (!user) {
-        //無效的token
-        next(generateError(PERMISSION_DENIED_STATUS_CODE, FailedMessageMap.invalid));
-        return;
+        logger.warn("[Auth] 無效的使用者 ID");
+        return next(generateError(PERMISSION_DENIED, FailedMessageMap.invalid));
       }
-      //在 req 物件加入 user 欄位
-      req.user = user;
+
+      // ✅ 組裝 req.user，提供 avatar_url 與 role_type 給前端用
+      req.user = {
+        id: user.id,
+        account: user.account,
+        username: user.username,
+        avatar_url: user.avatar_url,
+        role: {
+          id: user.role.id,
+          role_type: user.role.role_type
+        }
+      };
+
       next();
     } catch (error) {
-      logger.error(`[AuthV2] ${error.message}`);
+      logger.error(`[Auth] ${error.message}`);
       next(error);
     }
   };
