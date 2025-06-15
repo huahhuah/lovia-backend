@@ -11,8 +11,7 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 const SITE_URL = process.env.SITE_URL || "http://localhost:5173";
 const LINEPAY_BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://api-pay.line.me"
-    : "https://sandbox-api-pay.line.me";
+    ? "https://sandbox-api-pay.line.me";
 
 const CHANNEL_ID = process.env.LINEPAY_CHANNEL_ID;
 const CHANNEL_SECRET = process.env.LINEPAY_CHANNEL_SECRET;
