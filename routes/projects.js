@@ -13,6 +13,7 @@ const auth = require("../middlewares/auth")({
 });
 
 router.get("/", projects.getAllProjects);
+router.get("/my-projects", auth, projects.getMyProjects);
 router.get("/categories", projects.getAllCategories);
 router.post("/create", projects.createProject);
 router.post("/:id/plans", projects.createProjectPlan);
@@ -26,5 +27,5 @@ router.post("/:project_id/plans/:plan_id/sponsor", auth, projects.sponsorProject
 router.post("/:project_id/plans/:plan_id/sponsor-entry", auth, projects.createProjectSponsorship);
 router.get("/:project_id/faq", projects.getProjectFaq);
 router.get("/:project_id/comments", projects.getProjectComment);
-
+router.delete("/:id", auth, projects.deleteProject);
 module.exports = router;

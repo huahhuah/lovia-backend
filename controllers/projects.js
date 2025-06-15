@@ -6,6 +6,7 @@ const { getProjectType } = require("../utils/projectType");
 const jwt = require("jsonwebtoken");
 const { validateInvoice } = require("../utils/validateInvoice");
 const { v4: uuidv4 } = require("uuid");
+const { In } = require("typeorm");
 
 //  步驟一：建立專案
 async function createProject(req, res, next) {
@@ -894,6 +895,58 @@ async function getProjectFaq(req, res, next) {
   }
 }
 
+// 取得提案者的專案總覽
+async function getMyProjects(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return next(appError(401, "未登入"));
+
+    const projectRepo = dataSource.getRepository("Projects");
+    const sponsorshipRepo = dataSource.getRepository("Sponsorships");
+    const shippingRepo = dataSource.getRepository("Shippings");
+
+    const projects = await projectRepo.find({
+      where: { user: { id: userId } },
+      order: { id: "DESC" },
+      relations: ["projectPlans"]
+    });
+
+    const result = [];
+
+    for (const p of projects) {
+      const supportTotal = await sponsorshipRepo
+        .createQueryBuilder("s")
+        .where("s.project_id = :projectId", { projectId: p.id })
+        .select("SUM(s.amount)", "total")
+        .getRawOne();
+
+      const hasShipping = await shippingRepo.findOne({
+        where: { sponsorship: { project: { id: p.id } } },
+        relations: ["sponsorship"]
+      });
+
+      result.push({
+        id: p.id,
+        title: p.title,
+        targetAmount: p.total_amount,
+        supportAmount: parseInt(supportTotal?.total || 0),
+        status: p.project_type || "未設定", // ← 加這行
+        rewardItem: p.projectPlans?.[0]?.feedback || "-", // ✅ 改這行
+        shippingInfo: !!hasShipping
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "成功取得提案總覽",
+      data: result
+    });
+  } catch (error) {
+    console.error("getMyProjects 錯誤", error);
+    next(appError(500, "伺服器錯誤"));
+  }
+}
+
 // 取得單一專案留言
 async function getProjectComment(req, res, next) {
   try {
@@ -930,6 +983,111 @@ async function getProjectComment(req, res, next) {
   }
 }
 
+async function deleteProject(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    const projectId = parseInt(req.params.id, 10);
+
+    console.log("刪除專案請求:", {
+      userId,
+      projectId,
+      rawId: req.params.id,
+      userInfo: req.user
+    });
+
+    if (!userId) {
+      console.log("用戶未登入");
+      return next(appError(401, "未登入"));
+    }
+
+    if (isNaN(projectId)) {
+      console.log("專案 ID 格式錯誤:", req.params.id);
+      return next(appError(400, "專案 ID 格式錯誤"));
+    }
+
+    const projectRepo = dataSource.getRepository("Projects");
+    const planRepo = dataSource.getRepository("ProjectPlans");
+    const sponsorshipRepo = dataSource.getRepository("Sponsorships");
+    const shippingRepo = dataSource.getRepository("Shippings");
+
+    // 取得專案並驗證擁有者
+    const project = await projectRepo.findOne({
+      where: { id: projectId },
+      relations: ["user"]
+    });
+
+    console.log("查詢專案結果:", {
+      found: !!project,
+      projectId,
+      projectOwner: project?.user?.id,
+      currentUser: userId,
+      projectOwnerType: typeof project?.user?.id,
+      currentUserType: typeof userId
+    });
+
+    if (!project) {
+      console.log(`專案不存在: ID ${projectId}`);
+      return next(appError(404, "找不到該專案"));
+    }
+
+    // 將兩邊轉為字串比較，避免型態不同導致比較失敗
+    if (String(project.user.id) !== String(userId)) {
+      console.log(`權限不足: 專案擁有者 ${project.user.id}, 當前用戶 ${userId}`);
+      return next(appError(403, "無權限刪除此專案"));
+    }
+
+    console.log("開始刪除專案相關資料...");
+
+    // 取得該專案所有贊助
+    const sponsorships = await sponsorshipRepo.find({
+      where: { project: { id: projectId } }
+    });
+
+    console.log(`找到 ${sponsorships.length} 筆贊助記錄`);
+
+    const sponsorshipIds = sponsorships.map(s => s.id);
+
+    // 刪除相關 shipping
+    if (sponsorshipIds.length > 0) {
+      const shippingDeleteResult = await shippingRepo.delete({
+        sponsorship: In(sponsorshipIds)
+      });
+      console.log("刪除配送記錄:", shippingDeleteResult.affected);
+    }
+
+    // 刪除贊助紀錄
+    const sponsorshipDeleteResult = await sponsorshipRepo.delete({
+      project: { id: projectId }
+    });
+    console.log("刪除贊助記錄:", sponsorshipDeleteResult.affected);
+
+    // 刪除專案方案
+    const planDeleteResult = await planRepo.delete({
+      project: { id: projectId }
+    });
+    console.log("刪除專案方案:", planDeleteResult.affected);
+
+    // 刪除主專案
+    const projectDeleteResult = await projectRepo.delete({ id: projectId });
+    console.log("刪除主專案:", projectDeleteResult.affected);
+
+    console.log("專案刪除完成");
+
+    return res.status(200).json({
+      status: true,
+      message: "專案及相關資料刪除成功"
+    });
+  } catch (error) {
+    console.error("刪除專案錯誤:", {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      projectId: req.params.id
+    });
+    return next(appError(500, "伺服器錯誤"));
+  }
+}
+
 module.exports = {
   createProject,
   createProjectPlan,
@@ -944,5 +1102,7 @@ module.exports = {
   sponsorProjectPlan,
   createProjectSponsorship,
   getProjectFaq,
-  getProjectComment
+  getProjectComment,
+  getMyProjects,
+  deleteProject
 };
