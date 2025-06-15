@@ -118,7 +118,7 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
-      select: ["id", "username", "hashed_password", "role"],
+      select: ["id", "username", "hashed_password", "role","avatar_url"],
       where: { account },
       relations: ["role"]
     });
