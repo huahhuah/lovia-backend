@@ -915,7 +915,8 @@ async function getProjectComment(req, res, next) {
       project: { id: comment.project.id },
       user: {
         id: comment.user.id,
-        name: comment.user.username
+        name: comment.user.username,
+        avatar_url: comment.user.avatar_url
       }
     }));
 
