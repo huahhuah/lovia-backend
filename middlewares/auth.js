@@ -43,7 +43,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
   return async (req, res, next) => {
     const authHeader = req.headers?.authorization || "";
 
-    if (!authHeader.startsWith("Bearer ")) {
+    if (!authHeader.startsWith("Bearer")) {
       logger.warn("[Auth] Authorization header 不存在或格式錯誤");
       return next(generateError(PERMISSION_DENIED, FailedMessageMap.missing));
     }
@@ -74,6 +74,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
         account: user.account,
         username: user.username,
         avatar_url: user.avatar_url,
+        role_id: user.role_id,
         role: {
           id: user.role.id,
           role_type: user.role.role_type
