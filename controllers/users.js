@@ -144,7 +144,7 @@ async function postLogin(req, res, next) {
       status: true,
       data: {
         token,
-        users: {
+        user: {
           id: existingUser.id,
           account: existingUser.account,
           username: existingUser.username,
