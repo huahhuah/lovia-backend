@@ -115,6 +115,7 @@ async function postLogin(req, res, next) {
       logger.warn("密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字");
       return next(appError(400, "密碼不符合規則，需要包含英文數字大小寫，最短8個字，最長16個字"));
     }
+
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
       select: ["id", "username", "hashed_password", "role"],
@@ -141,18 +142,11 @@ async function postLogin(req, res, next) {
     );
 
     res.status(200).json({
-      status: true,
+      status: "true",
       data: {
         token,
-        user: {
-          id: existingUser.id,
-          account: existingUser.account,
-          username: existingUser.username,
-          avatar_url: existingUser.avatar_url,
-          role: {
-            id: existingUser.role.id,
-            role_type: existingUser.role.role_type
-          }
+        users: {
+          username: existingUser.username
         }
       }
     });
