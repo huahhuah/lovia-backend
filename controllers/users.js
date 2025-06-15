@@ -237,9 +237,8 @@ async function patchProfile(req, res, next) {
       isTooLong(username, 50) ||
       isNotValidString(phone) ||
       isTooLong(phone, 20) ||
-      (cleanedAvatar && (!isValidUrl(cleanedAvatar) || isTooLong(cleanedAvatar, 2083))) ||
-      (birthday && !isValidBirthday(birthday)) ||
-      (gender !== null && gender !== undefined && ![1, 2, 3, 4].includes(Number(gender)))
+      (cleanedAvatar && (isNotValidUrl(avatar_url) || isTooLong(avatar_url, 2083))) ||
+      (birthday && !isValidBirthday(birthday))
     ) {
       console.warn(" 格式驗證未通過");
       return next(appError(400, "格式錯誤"));
@@ -259,8 +258,15 @@ async function patchProfile(req, res, next) {
 
     // 處理性別關聯
     let genderEntity = null;
-    if (gender !== null && gender !== undefined) {
-      genderEntity = await genderRepository.findOne({ where: { id: Number(gender) } });
+
+    if (gender !== undefined && gender !== null && gender !== ''){
+      const genderId = Number(gender);
+      if (![1, 2, 3, 4].includes(genderId)){
+        return next(appError(400, "無效的性別選項"));
+      }
+
+      genderEntity = await genderRepository.findOne({ where: { id: genderId } });
+
       if (!genderEntity) {
         return next(appError(400, "無效的性別選項"));
       }
