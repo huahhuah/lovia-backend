@@ -239,8 +239,7 @@ async function patchProfile(req, res, next) {
       isNotValidString(phone) ||
       isTooLong(phone, 20) ||
       (cleanedAvatar && (isNotValidUrl(avatar_url) || isTooLong(avatar_url, 2083))) ||
-      (birthday && !isValidBirthday(birthday)) ||
-      (gender && ![1, 2, 3, 4].includes(Number(gender)))
+      (birthday && !isValidBirthday(birthday))
     ) {
       return next(appError(400, "格式錯誤"));
     }
@@ -257,8 +256,13 @@ async function patchProfile(req, res, next) {
     }
     // 驗證 gender id 是否正確
     let genderEntity = null;
-    if (gender) {
-      genderEntity = await genderRepository.findOne({ where: { id: gender } });
+    if (gender !== undefined && gender !== null && gender !== ''){
+      const genderId = Number(gender);
+      if (![1, 2, 3, 4].includes(genderId)){
+        return next(appError(400, "無效的性別選項"));
+      }
+
+      genderEntity = await genderRepository.findOne({ where: { id: genderId } });
       if (!genderEntity) {
         return next(appError(400, "無效的性別選項"));
       }
