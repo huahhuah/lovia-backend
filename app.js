@@ -12,7 +12,7 @@ const adminsRouter = require("./routes/admins");
 const ordersRouter = require("./routes/orders");
 const webhookRouter = require("./routes/webhooks");
 const linePayRoutes = require("./routes/linePay");
-const paymentRoutes = require("./routes/payments");
+const ecPaytRoutes = require("./routes/ecpay");
 const emailRoutes = require("./routes/email");
 
 const app = express();
@@ -36,7 +36,7 @@ if (process.env.NODE_ENV === "production") {
 //  Middleware 設定
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(
   pinoHttp({
     logger,
@@ -57,8 +57,8 @@ app.use("/api/v1/admins", adminsRouter);
 app.use("/api/v1/users/orders", ordersRouter);
 app.use("/api/v1/webhooks", webhookRouter);
 app.use("/api/v1/linepay", linePayRoutes);
-app.use("/api/v1", paymentRoutes);
 app.use("/api/v1", emailRoutes);
+app.use("/api/v1", ecPaytRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

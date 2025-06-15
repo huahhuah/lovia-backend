@@ -39,11 +39,11 @@ async function sendEmail({ to, subject, message }) {
       subject,
       text: message,
     };
-
     return transporter.sendMail(mailOptions);
   } catch (error){
     console.error('寄信失敗', error.message);
     throw error;
+
   }
 }
 
