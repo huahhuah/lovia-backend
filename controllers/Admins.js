@@ -15,10 +15,9 @@ async function getAllUsers(req, res, next){
         const { page = 1 } = req.query; // 預設
         const currentPage = Math.max(parseInt(page, 10) ||1,1);
         const pageSize = 10; // 一頁10筆資料
-        // 拿掉來試
-        // if(!(req.user.role_id === 3)){
-        //     return next(appError(401,'你沒有察看的權限'))
-        // }
+        if(!(req.user.role_id === 3)){
+            return next(appError(401,'你沒有察看的權限'))
+        }
 
         const userRepo = dataSource.getRepository("Users");
         const [users, total] = await userRepo.findAndCount({
