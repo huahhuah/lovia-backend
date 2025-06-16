@@ -499,8 +499,9 @@ async function getProjectOverview(req, res, next) {
     const categoryImg = getCategoryImg(categoryName);
 
     // 計算進度
-    const amount = project.amount || 0;
-    const progress_percent = Math.min(100, Math.floor((amount / project.total_amount) * 100));
+    const total = project.total_amount || 1; // 避免除以 0
+    const current_amount = project.amount || 0;
+    const progress_percent = Math.min(100, Math.floor((current_amount / total) * 100));
 
     //剩餘天數
     const today = new Date();
