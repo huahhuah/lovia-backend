@@ -140,6 +140,14 @@ async function postLogin(req, res, next) {
       },
       { expiresIn: "2h" }
     );
+    // 存入前次上線時間
+    await userRepository.update(
+      {
+        id: existingUser.id
+      },
+      {
+      last_login: new Date()}
+    )
 
     res.status(200).json({
       status: "true",
@@ -156,7 +164,6 @@ async function postLogin(req, res, next) {
             id: existingUser.role.id,
             role_type: existingUser.role.role_type
           }
-
         }
       }
     });
