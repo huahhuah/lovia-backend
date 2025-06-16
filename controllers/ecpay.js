@@ -5,6 +5,7 @@ const { sendSponsorSuccessEmail, sendInvoiceEmail } = require("../utils/emailSer
 
 const MERCHANT_ID = process.env.ECPAY_MERCHANT_ID;
 const RETURN_URL = process.env.ECPAY_RETURN_URL;
+const CLIENT_BACK_URL = `${process.env.SITE_URL}/checkout/result`;
 
 async function createEcpayPayment(req, res) {
   try {
@@ -31,7 +32,7 @@ async function createEcpayPayment(req, res) {
       .trim()
       .slice(0, 100);
 
-    const paymentType = req.body.payment_type === "atm" ? "ATM" : "Credit";
+    const paymentType = (req.body.payment_type || "").toLowerCase() === "atm" ? "ATM" : "Credit";
 
     order.payment_trade_no = tradeNo.slice(0, 20);
     await repo.save(order);
@@ -50,7 +51,7 @@ async function createEcpayPayment(req, res) {
       CustomField1: orderId,
       CustomField2: tradeNo,
       CustomField3: order.user?.id || "",
-      Email: order.user?.email || "test@example.com",
+      Email: order.user?.email?.trim() || "test@example.com",
       EncryptType: 1
     };
 
@@ -85,6 +86,7 @@ async function handleEcpayATMInfo(req, res) {
     const repo = dataSource.getRepository(Sponsorships);
     const order = await repo.findOneBy({ order_uuid: CustomField1 });
     if (!order) return res.send("0|NOT_FOUND");
+
     if (order.payment_status === "paid") return res.send("1|ALREADY_PAID");
 
     order.payment_method = "ATM";
@@ -137,9 +139,11 @@ async function handleEcpayCallback(req, res) {
 
     await repo.save(order);
 
+    //  debug：檢查發票型別
+    console.log(" 發票類型名稱：", order.invoice?.type?.name);
+
     //  寄送通知信與發票
     try {
-      console.log("發票類型名稱：", order.invoice?.type?.name);
       await sendSponsorSuccessEmail(order);
 
       const invoiceType = order.invoice?.type?.name;

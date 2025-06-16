@@ -18,6 +18,8 @@ const Shippings = require("../entities/Shippings.js");
 const Invoices = require("../entities/Invoices.js");
 const InvoiceTypes = require("../entities/InvoiceTypes.js");
 const Follows = require("../entities/Follows.js");
+const Proposers = require("../entities/Proposers.js");
+const ProposerStatuses = require("../entities/Proposer_statuses.js");
 
 const isRender = process.env.DATABASE_URL?.includes("render.com");
 const sslOption = isRender || config.get("db.ssl") ? { rejectUnauthorized: false } : false;
@@ -44,7 +46,9 @@ const dataSource = new DataSource({
     Shippings,
     Invoices,
     InvoiceTypes,
-    Follows
+    Follows,
+    Proposers,
+    ProposerStatuses
   ]
 });
 

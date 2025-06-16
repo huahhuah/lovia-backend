@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const pinoHttp = require("pino-http");
-const env = require("dotenv").config();
 
 const logger = require("./utils/logger")("App");
 const usersRouter = require("./routes/users");
@@ -11,6 +10,10 @@ const projectRouter = require("./routes/projects");
 const uploadRouter = require("./routes/upload");
 const adminsRouter = require("./routes/admins");
 const linePayRoutes = require("./routes/linePay");
+const ordersRouter = require("./routes/orders");
+const webhookRouter = require("./routes/webhooks");
+const ecPaytRoutes = require("./routes/ecpay");
+const emailRoutes = require("./routes/email");
 
 const app = express();
 
@@ -33,7 +36,7 @@ if (process.env.NODE_ENV === "production") {
 //  Middleware 設定
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(
   pinoHttp({
     logger,
@@ -51,7 +54,11 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
 app.use("/api/v1/admins", adminsRouter);
-app.use("/api/v1/payments", linePayRoutes);
+app.use("/api/v1/users/orders", ordersRouter);
+app.use("/api/v1/webhooks", webhookRouter);
+app.use("/api/v1/linepay", linePayRoutes);
+app.use("/api/v1", emailRoutes);
+app.use("/api/v1", ecPaytRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);

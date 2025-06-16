@@ -4,22 +4,22 @@ const config = require("../config");
 const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("User");
 const generateJWT = require("../utils/generateJWT");
-const nodemailer = require("nodemailer");
-const smtpConfig = config.get("email.smtp");
-const frontendUrl = config.get("email.frontendBaseUrl");
 const jwtSecret = config.get("secret").jwtSecret;
-const jwt = require('jsonwebtoken');
 const {
   isUndefined,
   isNotValidString,
   isTooLong,
   isValidDate,
   isNotValidGender,
-  isNotValidUrl
+  isNotValidUrl,
+  isValidBirthday
 } = require("../utils/validUtils");
 const bcrypt = require("bcrypt");
 const appError = require("../utils/appError");
 const { getRepository } = require("typeorm");
+const { RelationLoader } = require("typeorm/query-builder/RelationLoader.js");
+const { app } = require("firebase-admin");
+const Proposer_statuses = require("../entities/Proposer_statuses");
 const auth = require("../middlewares/auth")({
   secret: jwtSecret,
   userRepository: dataSource.getRepository("Users"),
@@ -118,11 +118,7 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
-<<<<<<< Updated upstream
       select: ["id", "username", "hashed_password", "role"],
-=======
-      select: ["id", "username", "hashed_password", "role", "avatar_url"],
->>>>>>> Stashed changes
       where: { account },
       relations: ["role"]
     });
@@ -142,22 +138,26 @@ async function postLogin(req, res, next) {
         role_id: existingUser.role.id,
         role: existingUser.role.role
       },
-      { expiresIn: "15m" }
+      { expiresIn: "2h" }
+    );
+    // 存入前次上線時間
+    await userRepository.update(
+      {
+        id: existingUser.id
+      },
+      {
+        last_login: new Date()
+      }
     );
 
     res.status(200).json({
-      status: true,
+      status: "true",
       data: {
         token,
         users: {
           id: existingUser.id,
           account: existingUser.account,
           username: existingUser.username,
-<<<<<<< Updated upstream
-=======
-          role_id: existingUser.role.id,
-          role: existingUser.role.role,
->>>>>>> Stashed changes
           avatar_url: existingUser.avatar_url,
           role: {
             id: existingUser.role.id,
@@ -239,23 +239,27 @@ async function getProfile(req, res, next) {
 // 修改會員資料
 async function patchProfile(req, res, next) {
   const { username, phone, avatar_url, birthday, gender } = req.body;
+
   try {
-    if (!req.user || !req.user.id) {
-      return next(appError(401, "未授權，Token無效"));
+    if (!req.user?.id) {
+      return next(appError(401, "未授權，Token 無效"));
     }
-    const cleanedAvatar = avatar_url ? avatar_url.trim() : null;
+
+    const cleanedAvatar = typeof avatar_url === "string" ? avatar_url.trim() : null;
+
+    // 格式驗證
     if (
       isNotValidString(username) ||
       isTooLong(username, 50) ||
       isNotValidString(phone) ||
       isTooLong(phone, 20) ||
       (cleanedAvatar && (isNotValidUrl(avatar_url) || isTooLong(avatar_url, 2083))) ||
-      (birthday && !isValidBirthday(birthday)) ||
-      (gender && ![1, 2, 3, 4].includes(Number(gender)))
+      (birthday && !isValidBirthday(birthday))
     ) {
+      console.warn(" 格式驗證未通過");
       return next(appError(400, "格式錯誤"));
     }
-    const user_id = req.user.id;
+
     const userRepository = dataSource.getRepository("Users");
     const genderRepository = dataSource.getRepository("Genders");
 
@@ -263,62 +267,80 @@ async function patchProfile(req, res, next) {
       where: { id: req.user.id },
       relations: ["gender"]
     });
+
     if (!user) {
-      return next(appError(401, "未授權，Token無效"));
+      return next(appError(401, "使用者不存在"));
     }
-    // 驗證 gender id 是否正確
+
+    // 處理性別關聯
     let genderEntity = null;
-
-    if (gender !== undefined && gender !== null && gender !== "") {
-      const genderId = Number(gender);
-      if (![1, 2, 3, 4].includes(genderId)) {
-        return next(appError(400, "無效的性別選項"));
-      }
-
-      genderEntity = await genderRepository.findOne({ where: { id: genderId } });
-
+    if (gender) {
+      genderEntity = await genderRepository.findOne({ where: { id: gender } });
       if (!genderEntity) {
         return next(appError(400, "無效的性別選項"));
       }
     }
+
+    // 處理生日欄位
+    const parsedBirthday = birthday ? new Date(birthday) : null;
+    if (parsedBirthday && isNaN(parsedBirthday.getTime())) {
+      return next(appError(400, "生日格式錯誤"));
+    }
+
+    // 更新使用者資料
     user.username = username;
     user.phone = phone;
-    user.avatar_url = avatar_url || user.avatar_url;
-    user.birthday = birthday || user.birthday;
+    user.avatar_url = cleanedAvatar || user.avatar_url;
+    user.birthday = parsedBirthday;
     user.gender = genderEntity;
+
+    console.log(" 更新使用者資料前：", {
+      id: user.id,
+      username: user.username,
+      phone: user.phone,
+      avatar_url: user.avatar_url,
+      birthday: user.birthday,
+      gender: genderEntity ? genderEntity.gender : null
+    });
 
     await userRepository.save(user);
 
-    res.status(200).json({
+    return res.status(200).json({
       status: true,
       message: "修改成功",
       data: {
         user: {
-          userId: user.userId,
+          id: user.id,
           username: user.username,
           phone: user.phone,
           avatar_url: user.avatar_url,
           birthday: user.birthday,
-          gender: user.gender
+          gender: genderEntity
+            ? {
+                id: genderEntity.id,
+                label: genderEntity.gender
+              }
+            : null
         }
       }
     });
   } catch (error) {
-    next(error);
+    console.error(" 修改會員資料錯誤:", error.message, error.stack);
+    return next(appError(500, "伺服器內部錯誤"));
   }
 }
 
 // 新增進度
-async function postProgress(req, res, next){
-  const {project_id} = req.params;
-  const {title, content, date, fund_usages=[]} = req.body;
+async function postProgress(req, res, next) {
+  const { project_id } = req.params;
+  const { title, content, date, fund_usages = [] } = req.body;
   try {
-    if (!req.user || !req.user.id){
-      return next(appError(401, '未授權，Token無效'));
+    if (!req.user || !req.user.id) {
+      return next(appError(401, "未授權，Token無效"));
     }
-    for (const detail of fund_usages){
-      const {recipient, usage, amount, status} =detail;
-      if(
+    for (const detail of fund_usages) {
+      const { recipient, usage, amount, status } = detail;
+      if (
         isUndefined(recipient) ||
         isNotValidString(recipient) ||
         isUndefined(usage) ||
@@ -327,45 +349,45 @@ async function postProgress(req, res, next){
         amount <= 0 ||
         isUndefined(status) ||
         isNotValidString(status)
-      ){
-        return next(appError(400, '明細資料格式有誤'));
+      ) {
+        return next(appError(400, "明細資料格式有誤"));
       }
     }
     if (
-      isUndefined(title) || 
+      isUndefined(title) ||
       isNotValidString(title) ||
       isUndefined(content) ||
       !isValidDate(date)
-    ){
-      return next(appError(400, '格式錯誤'));
+    ) {
+      return next(appError(400, "格式錯誤"));
     }
-    try{
+    try {
       const progressRepo = dataSource.getRepository("ProjectProgresses");
       const fundUsageRepo = dataSource.getRepository("FundUsages");
       const newProgress = await progressRepo.save({
         project_id,
         title,
         content,
-        date,
+        date
       });
 
       // 處理 fund_usages
       const statusRepo = dataSource.getRepository("FundUsageStatuses");
       const fundUsageEntities = [];
       for (const detail of fund_usages) {
-        const statusCode = (detail.status || '').trim();
+        const statusCode = (detail.status || "").trim();
         const statusRecord = await statusRepo.findOne({
-          where: { code: statusCode } 
+          where: { code: statusCode }
         });
 
-      const usageEntity = fundUsageRepo.create({
-        progress_id: newProgress.id,
-        recipient: detail.recipient,
-        usage: detail.usage,
-        amount: detail.amount,
-        status_id: statusRecord.id, 
-      });
-      fundUsageEntities.push(usageEntity);
+        const usageEntity = fundUsageRepo.create({
+          progress_id: newProgress.id,
+          recipient: detail.recipient,
+          usage: detail.usage,
+          amount: detail.amount,
+          status_id: statusRecord.id
+        });
+        fundUsageEntities.push(usageEntity);
       }
       await fundUsageRepo.save(fundUsageEntities);
       res.status(200).json({
@@ -375,15 +397,15 @@ async function postProgress(req, res, next){
           title: newProgress.title,
           content: newProgress.content,
           date: newProgress.date,
-          fund_usages: fundUsageEntities,
-        },
+          fund_usages: fundUsageEntities
+        }
       });
+    } catch (error) {
+      logger.error("新增進度資料失敗", error);
+      next(error);
+    }
   } catch (error) {
-    logger.error('新增進度資料失敗', error);
-    next(error);
-  }
-  } catch (error) {
-    logger.error('新增資料失敗',error);
+    logger.error("新增資料失敗", error);
     next(error);
   }
 }
@@ -392,7 +414,7 @@ async function postProgress(req, res, next){
 async function putChangePassword(req, res, next) {
   try {
     const userIdFromToken = req.user?.id;
-    const userIdFromParams = req.params.id; 
+    const userIdFromParams = req.params.id;
     const { currentPassword, newPassword, newPasswordConfirm } = req.body;
 
     if (userIdFromToken !== userIdFromParams) {
@@ -410,7 +432,6 @@ async function putChangePassword(req, res, next) {
       return next(appError(400, "請正確填寫目前密碼與新密碼"));
     }
 
-    
     if (newPassword !== newPasswordConfirm) {
       return next(appError(400, "新密碼與確認密碼不一致"));
     }
@@ -451,89 +472,89 @@ async function putChangePassword(req, res, next) {
 }
 
 // 修改進度
-async function updateProgress(req, res, next){
-  const {project_id, progress_id} = req.params;
-  const {title, content, date, fund_usages} = req.body;
+async function updateProgress(req, res, next) {
+  const { project_id, progress_id } = req.params;
+  const { title, content, date, fund_usages } = req.body;
   const projectRepo = dataSource.getRepository("Projects");
   const progressRepo = dataSource.getRepository("ProjectProgresses");
   try {
-    if(!req.user || !req.user.id){
-      return next(appError(401,'未授權，Token無效'));
+    if (!req.user || !req.user.id) {
+      return next(appError(401, "未授權，Token無效"));
     }
     const progress = await progressRepo.findOne({
-      where: {id: progress_id, project_id: project_id, },
+      where: { id: progress_id, project_id: project_id },
       relations: ["project", "project.user"]
     });
-    if (!progress) return next(appError(400, '找不到進度'));
+    if (!progress) return next(appError(400, "找不到進度"));
     const project = progress.project;
-    if (!project) return next(appError(400, '找不到專案'));
-    if (project.user.id !== req.user.id){
-      return next(appError(403, '你沒有修改此進度的權利'))
-    };
+    if (!project) return next(appError(400, "找不到專案"));
+    if (project.user.id !== req.user.id) {
+      return next(appError(403, "你沒有修改此進度的權利"));
+    }
 
     // 更新有變更的欄位
-    if (title !== undefined){
-      if(isNotValidString(title) ||isTooLong(title,100)) {
-        return next(appError(400, '標題格式錯誤'));
+    if (title !== undefined) {
+      if (isNotValidString(title) || isTooLong(title, 100)) {
+        return next(appError(400, "標題格式錯誤"));
       }
-      progress.title = title
-    };
-    if (date !== undefined){
-      if(!isValidDate(date)){
-        return next(appError(400, '日期格式錯誤'));
+      progress.title = title;
+    }
+    if (date !== undefined) {
+      if (!isValidDate(date)) {
+        return next(appError(400, "日期格式錯誤"));
       }
       progress.date = date;
-    };
+    }
     if (content !== undefined) progress.content = content;
 
     const fundUsageRepo = dataSource.getRepository("FundUsages");
     let newFundUsages = [];
-    if (Array.isArray(fund_usages)){
-      await fundUsageRepo.delete({ progress:{id: progress_id}});
-      if (fund_usages.length >0 ){
-        newFundUsages = fund_usages.map(detail =>{
-          if (!detail.recipient || isNotValidString(detail.recipient)){
-            throw next(appError(400, '收款單位格式錯誤'));
-          };
-          if (isNaN(detail.amount) || detail.amount <=0 ){
-              throw next(appError(400, '金額必須為正整數'));
-          };
+    if (Array.isArray(fund_usages)) {
+      await fundUsageRepo.delete({ progress: { id: progress_id } });
+      if (fund_usages.length > 0) {
+        newFundUsages = fund_usages.map(detail => {
+          if (!detail.recipient || isNotValidString(detail.recipient)) {
+            throw next(appError(400, "收款單位格式錯誤"));
+          }
+          if (isNaN(detail.amount) || detail.amount <= 0) {
+            throw next(appError(400, "金額必須為正整數"));
+          }
           const statusMap = {
-            "已撥款": 1,
-            "審核中": 2,
-            "未撥款": 3,
+            已撥款: 1,
+            審核中: 2,
+            未撥款: 3
           };
           let status_id = detail.status_id;
           if (!status_id && detail.status && statusMap[detail.status]) {
             status_id = statusMap[detail.status];
-          };          
-          if (!status_id ){
-            return next(appError(400, '缺少狀態 ID'));
+          }
+          if (!status_id) {
+            return next(appError(400, "缺少狀態 ID"));
           }
           return fundUsageRepo.create({
             recipient: detail.recipient,
             usage: detail.usage,
             amount: detail.amount,
-            status: {id: status_id},
+            status: { id: status_id },
             progress: { id: progress_id }
           });
-      })
-      await fundUsageRepo.save(newFundUsages);
-      }; 
+        });
+        await fundUsageRepo.save(newFundUsages);
+      }
     }
     await progressRepo.save(progress);
     const updateProgress = await progressRepo.findOne({
-      where: {id: progress_id},
+      where: { id: progress_id },
       relations: ["fundUsages", "fundUsages.status"]
     });
     res.status(200).json({
       status: true,
-      data:{ 
+      data: {
         progress_id: updateProgress.id,
         title: updateProgress.title,
         date: updateProgress.date,
         content: updateProgress.content,
-        fund_usages: updateProgress.fundUsages.map(detail =>({
+        fund_usages: updateProgress.fundUsages.map(detail => ({
           recipient: detail.recipient,
           usage: detail.usage,
           amount: detail.amount,
@@ -542,179 +563,68 @@ async function updateProgress(req, res, next){
       },
       created_at: new Date()
     });
-  } catch (error){
-    logger.error('更新失敗',error);
+  } catch (error) {
+    logger.error("更新失敗", error);
     next(error);
   }
 }
 
-// 設定 nodemailer 寄信功能（以 Gmail 為例，可換成其他 smtp 設定）
-const transporter = nodemailer.createTransport({
-  host: smtpConfig.host,
-  port: smtpConfig.port,
-  secure: smtpConfig.secure,
-  auth: {
-    user: smtpConfig.user,
-    pass: smtpConfig.pass
+// 使用者提出申請成為提案者
+async function postApplication(req, res, next) {
+  const user_id = req.user?.id;
+  const { url, funding_account } = req.body;
+  if (!user_id) {
+    return next(appError(401, "未授權的存取"));
   }
-});
-
-// ✅ 忘記密碼：寄送 email 連結
-async function sendResetPasswordEmail(req, res, next) {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return next(appError(400, "請提供 email"));
-    }
-
-    const userRepository = dataSource.getRepository("Users");
-    const user = await userRepository.findOne({ where: { account: email } });
-
-    if (!user) {
-      return next(appError(404, "查無此 email 的帳號"));
-    }
-
-    const token = jwt.sign({ id: user.id }, jwtSecret, { expiresIn: "1h" });
-    const resetLink = `${frontendUrl}/#/reset-password/${token}`;
-
-    await transporter.sendMail({
-      from: `"系統通知" <${config.get("email").account}>`,
-      to: email,
-      subject: "密碼重設連結",
-      html: `
-        <p>您好，請點擊以下連結以重設密碼（連結有效時間為 1 小時）：</p>
-        <a href="${resetLink}">${resetLink}</a>
-      `
-    });
-
-    res.status(200).json({ message: "重設密碼連結已寄出" });
-  } catch (err) {
-    next(err);
+  if (!url || !funding_account) {
+    return next(appError(400, "請完整填寫申請資料"));
   }
-}
-
-// ✅ 重設密碼：驗證 token 並更新密碼
-async function resetPassword(req, res, next) {
+  if (isNotValidUrl(url)) {
+    return next(appError(400, "請填入完整網址"));
+  }
   try {
-    const { token } = req.params;
-    const { password } = req.body;
-
-    console.log('重設密碼請求:', { token: token?.substring(0, 20) + '...', hasPassword: !!password });
-
-    if (!password) {
-      return next(appError(400, "請提供新密碼"));
-    }
-
-    const passwordPattern = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,16}/;
-    if (!passwordPattern.test(password)) {
-      return next(appError(400, "密碼需包含大小寫英文與數字，長度 8–16 字元"));
-    }
-
-    let decoded;
-    try {
-      decoded = jwt.verify(token, jwtSecret);
-      console.log('Token 解碼成功:', { userId: decoded.id, exp: new Date(decoded.exp * 1000) });
-    } catch (err) {
-      console.error('Token 驗證失敗:', err.message);
-      return next(appError(400, "連結已過期或無效"));
-    }
-
-    const userRepository = dataSource.getRepository("Users");
-    
-    const user = await userRepository.findOne({ 
-      where: { id: decoded.id },
-      select: ["id", "username", "account", "hashed_password"]
+    const userRepo = dataSource.getRepository("Users");
+    const applyUser = await userRepo.findOne({
+      where: { id: user_id }
     });
-
-    if (!user) {
-      console.error('找不到使用者:', decoded.id);
+    if (!applyUser) {
       return next(appError(404, "找不到使用者"));
     }
-
-    console.log('找到使用者:', { 
-      id: user.id, 
-      username: user.username,
-      account: user.account,
-      hasCurrentPassword: !!user.hashed_password 
-    });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log('新密碼 hash:', hashedPassword.substring(0, 20) + '...');
-
-    user.hashed_password = hashedPassword;
-
-    const savedUser = await userRepository.save(user);
-    console.log('使用者已保存:', { 
-      id: savedUser.id,
-      passwordUpdated: !!savedUser.hashed_password
-    });
-
-    const updatedUser = await userRepository.findOne({ 
-      where: { id: decoded.id },
-      select: ["id", "hashed_password"]
-    });
-    
-    const passwordMatches = updatedUser.hashed_password === hashedPassword;
-    console.log('資料庫驗證 - 密碼已更新:', passwordMatches);
-
-    if (!passwordMatches) {
-      console.error('警告：密碼更新後驗證失敗');
-      return next(appError(500, "密碼更新失敗，請稍後再試"));
+    if (applyUser.role_type === 2) {
+      return next(appError(400, "你已是提案者"));
     }
+    const proposerRepo = dataSource.getRepository("Proposers");
 
-    res.status(200).json({ 
-      message: "密碼已成功更新",
-      success: true 
+    let existing = await proposerRepo.findOne({
+      where: { user_id }
     });
-  } catch (err) {
-    console.error('重設密碼發生錯誤:', err);
-    next(err);
-  }
-}
-
-// 專案追蹤/取消追蹤
-async function toggleFollowStatus(req, res, next){
-  try{
-    const { project_id } = req.params;
-    const userId = req.user.id;
-
-    const userRepo = dataSource.getRepository("Users");
-    const projectRepo = dataSource.getRepository("Projects");
-    const followRepo = dataSource.getRepository("Follows");
-
-    const user = await userRepo.findOne({ where: {id: userId}});
-    const project = await projectRepo.findOne({ where: {id: project_id}});
-    if (!user || !project) {
-      return next(appError(404, '專案或使用者不存在'));
-    }
-
-    let followRecord = await followRepo.findOne({
-      where: {
-        user: { id: userId}, 
-        project: { id: project_id},
-      },
-      relations: ["user", "project"]
-    });
-
-    if (!followRecord){
-      followRecord = followRepo.create({
-        user, project, follow: true
+    if (existing) {
+      existing.url = url;
+      existing.funding_account = funding_account;
+      existing.status = 1;
+      existing.created_at = new Date();
+      await proposerRepo.save(existing);
+    } else {
+      const newApplication = await proposerRepo.create({
+        user_id,
+        url,
+        funding_account,
+        proposerStatuses: { id: 1 }
       });
-      await followRepo.save(followRecord);
-      return res.status(201).json({
-        message: '成功追蹤專案',
-        follow: true
-      });
+      await proposerRepo.save(newApplication);
     }
-    followRecord.follow = !followRecord.follow;
-    await followRepo.save(followRecord);
-    return res.status(200).json({
-      message: followRecord.follow? '成功追蹤專案' : '取消追蹤專案',
-      follow: followRecord.follow
+    const result = await proposerRepo.findOne({
+      where: { user_id },
+      relations: ["proposerStatuses"]
     });
-  } catch (error){
-      logger.error('更新失敗', error);
-      next(error);
+    res.status(200).json({
+      status: true,
+      message: "申請已提出",
+      data: result
+    });
+  } catch (error) {
+    logger.error("申請失敗", error);
+    next(error);
   }
 }
 
@@ -727,8 +637,5 @@ module.exports = {
   postProgress,
   putChangePassword,
   updateProgress,
-  sendResetPasswordEmail,
-  resetPassword,
-  toggleFollowStatus
+  postApplication
 };
-  
