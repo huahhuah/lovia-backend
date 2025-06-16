@@ -798,7 +798,8 @@ async function createProjectSponsorship(req, res, next) {
         plan: { plan_id: planIdInt },
         amount,
         status: "pending"
-      }
+      },
+      relations: ["invoice", "shipping"]
     });
 
     if (existing) {
