@@ -790,6 +790,30 @@ async function createProjectSponsorship(req, res, next) {
       return next(appError(400, "贊助金額必須為正整數"));
     }
 
+    // ✅ 防止重複建立相同未付款訂單
+    const existing = await sponsorshipRepo.findOne({
+      where: {
+        user: { id: userId },
+        project: { id: parseInt(project_id) },
+        plan: { plan_id: planIdInt },
+        amount,
+        status: "pending"
+      }
+    });
+
+    if (existing) {
+      return res.status(200).json({
+        status: true,
+        message: "已有相同金額的未付款訂單，請完成付款",
+        data: {
+          orderId: existing.order_uuid,
+          sponsorshipId: existing.id,
+          amount: existing.amount
+        }
+      });
+    }
+
+    // 建立新 sponsorship
     const newSponsorship = sponsorshipRepo.create({
       user: { id: userId },
       project,
@@ -803,7 +827,7 @@ async function createProjectSponsorship(req, res, next) {
     });
     await sponsorshipRepo.save(newSponsorship);
 
-    // 判斷是否有寄送資料
+    // 寄送資料
     const hasShippingInfo =
       !!shipping.name?.trim() ||
       !!shipping.phone?.trim() ||
@@ -822,9 +846,8 @@ async function createProjectSponsorship(req, res, next) {
       newSponsorship.shipping = savedShipping;
     }
 
-    //  加入 invoiceTypeCode 正確定義
+    // 發票資料
     const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
-
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
       if (!invoiceType) return next(appError(400, "發票類型無效"));
@@ -846,27 +869,19 @@ async function createProjectSponsorship(req, res, next) {
       newSponsorship.invoice = savedInvoice;
     }
 
-    // 更新 sponsorship 關聯欄位
     await sponsorshipRepo.save(newSponsorship);
 
-    res.status(200).json({
+    return res.status(200).json({
       status: true,
       message: "訂單建立成功，請完成付款",
       data: {
         orderId: newSponsorship.order_uuid,
-        order_uuid: newSponsorship.order_uuid,
         sponsorshipId: newSponsorship.id,
         amount: newSponsorship.amount
       }
     });
   } catch (error) {
-    console.error("建立贊助失敗:", error.message);
-    console.error(" error.stack:\n", error.stack);
-    console.error(" 完整錯誤物件:", error);
-    if (error?.detail) console.error(" PG Detail:", error.detail);
-    if (error?.query) console.error(" SQL:", error.query);
-    if (error?.parameters) console.error(" Params:", error.parameters);
-
+    console.error("建立贊助失敗:", error);
     return next(appError(500, error.message || "伺服器錯誤"));
   }
 }
