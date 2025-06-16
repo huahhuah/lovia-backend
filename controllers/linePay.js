@@ -9,10 +9,7 @@ const { sendInvoiceEmail } = require("../utils/sendInvoiceEmail");
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 const SITE_URL = process.env.SITE_URL || "http://localhost:5173";
-const LINEPAY_BASE_URL =
-  process.env.NODE_ENV === "production"
-    ? "https://api-pay.line.me"
-    : "https://sandbox-api-pay.line.me";
+const LINEPAY_BASE_URL = "https://sandbox-api-pay.line.me";
 
 const CHANNEL_ID = process.env.LINEPAY_CHANNEL_ID;
 const CHANNEL_SECRET = process.env.LINEPAY_CHANNEL_SECRET;
@@ -25,8 +22,9 @@ async function handleLinePayRequest(req, res, next) {
     if (!userId) return next(appError(401, "請先登入"));
 
     const { orderId, amount, email, productName } = req.body;
-    if (!orderId || !amount || !email || !productName) {
-      return next(appError(400, "缺少必要欄位"));
+
+    if (!orderId || !email || !productName || !Number.isFinite(amount) || amount <= 0) {
+      return next(appError(400, "欄位格式不正確"));
     }
 
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
@@ -48,14 +46,14 @@ async function handleLinePayRequest(req, res, next) {
       orderId,
       packages: [
         {
-          id: uuidv4(),
+          id: `pkg_${orderId.slice(0, 10)}`,
           amount,
           products: [{ name: productName, quantity: 1, price: amount }]
         }
       ],
       redirectUrls: {
-        confirmUrl: `${BACKEND_URL}/api/v1/linepay/payments/confirm?method=linepay`,
-        cancelUrl: `${BACKEND_URL}/api/v1/linepay/payments/cancel`
+        confirmUrl: `${BACKEND_URL}/api/v1/linepay/payments/confirm?orderId=${orderId}`,
+        cancelUrl: `${SITE_URL}/payment/PaymentCancel`
       }
     };
 
@@ -76,7 +74,10 @@ async function handleLinePayRequest(req, res, next) {
     return res.status(200).json({
       status: true,
       message: "建立付款請求成功",
-      data: { paymentUrl }
+      data: {
+        paymentUrl,
+        method: "LINE_PAY"
+      }
     });
   } catch (err) {
     console.error("LINE Pay 請求失敗:", {
