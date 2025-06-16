@@ -4,10 +4,11 @@ const appError = require("../utils/appError");
 const { dataSource } = require("../db/data-source");
 
 async function createPaymentRequest(req, res, next) {
-  const { orderId, amount, email, payment_type } = req.body;
+  const { amount, email, payment_type } = req.body;
   const { order_id } = req.params;
 
   const supportedTypes = ["linepay", "credit", "atm"];
+  const sponsorshipRepo = dataSource.getRepository("Sponsorships");
 
   if (!order_id) {
     return next(appError(400, "缺少訂單 ID"));
@@ -23,6 +24,16 @@ async function createPaymentRequest(req, res, next) {
     return next(appError(400, `不支援的付款方式：${payment_type}`));
   }
 
+  // 檢查是否已存在該訂單（避免重複建立付款）
+  const existing = await sponsorshipRepo.findOneBy({ order_uuid: order_id });
+  if (!existing) {
+    return next(appError(404, "查無此訂單"));
+  }
+
+  if (existing.payment_status === "paid") {
+    return next(appError(400, "此訂單已完成付款，請勿重複操作"));
+  }
+
   // 將 order_id 合併進 body 傳入原 controller
   req.body.orderId = order_id;
 
@@ -30,9 +41,10 @@ async function createPaymentRequest(req, res, next) {
     return handleLinePayRequest(req, res, next);
   }
 
-  if (normalizedType === "credit" || payment_type === "atm") {
+  if (normalizedType === "credit" || normalizedType === "atm") {
     return createEcpayPayment(req, res, next);
   }
+
   return next(appError(400, "付款類型處理失敗"));
 }
 
