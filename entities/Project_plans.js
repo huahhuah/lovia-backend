@@ -51,6 +51,11 @@ module.exports = new EntitySchema({
       target: "Projects",
       joinColumn: { name: "project_id" },
       inverseSide: "projectPlans"
+    },
+    sponsorships: {
+      type: "one-to-many",
+      target: "Sponsorships",
+      inverseSide: "plan" // 注意：這裡要對應 Sponsorships 裡的 plan
     }
   }
 });

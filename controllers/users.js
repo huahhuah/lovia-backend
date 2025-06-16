@@ -118,7 +118,11 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
+<<<<<<< Updated upstream
       select: ["id", "username", "hashed_password", "role"],
+=======
+      select: ["id", "username", "hashed_password", "role", "avatar_url"],
+>>>>>>> Stashed changes
       where: { account },
       relations: ["role"]
     });
@@ -149,6 +153,11 @@ async function postLogin(req, res, next) {
           id: existingUser.id,
           account: existingUser.account,
           username: existingUser.username,
+<<<<<<< Updated upstream
+=======
+          role_id: existingUser.role.id,
+          role: existingUser.role.role,
+>>>>>>> Stashed changes
           avatar_url: existingUser.avatar_url,
           role: {
             id: existingUser.role.id,
@@ -259,8 +268,15 @@ async function patchProfile(req, res, next) {
     }
     // 驗證 gender id 是否正確
     let genderEntity = null;
-    if (gender) {
-      genderEntity = await genderRepository.findOne({ where: { id: gender } });
+
+    if (gender !== undefined && gender !== null && gender !== "") {
+      const genderId = Number(gender);
+      if (![1, 2, 3, 4].includes(genderId)) {
+        return next(appError(400, "無效的性別選項"));
+      }
+
+      genderEntity = await genderRepository.findOne({ where: { id: genderId } });
+
       if (!genderEntity) {
         return next(appError(400, "無效的性別選項"));
       }

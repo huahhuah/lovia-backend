@@ -459,7 +459,6 @@ async function getAllCategories(req, res, next) {
   }
 }
 
-// 查詢專案概覽
 function getCategoryImg(name) {
   const map = {
     動物: "animal",
@@ -473,6 +472,7 @@ function getCategoryImg(name) {
   return fileKey ? `/images/categories/${map[fileKey]}.png` : "";
 }
 
+// 查詢專案概覽
 async function getProjectOverview(req, res, next) {
   const projectId = parseInt(req.params.projectId);
 
@@ -493,19 +493,30 @@ async function getProjectOverview(req, res, next) {
       return next(appError(404, "找不到該專案"));
     }
 
+    //類別圖示
     const categoryName = project.category?.name || "";
     const categoryImg = getCategoryImg(categoryName);
 
-    // 計算進度與剩餘天數
+    // 計算進度
     const current_amount = project.current_amount || 0;
     const progress_percent = Math.min(
       100,
       Math.floor((current_amount / project.total_amount) * 100)
     );
 
+    //剩餘天數
     const today = new Date();
     const end = new Date(project.end_time);
     const remaining_days = Math.max(0, Math.ceil((end - today) / (1000 * 60 * 60 * 24)));
+
+    // 加入贊助人數統計
+    const sponsorRepo = dataSource.getRepository("Sponsorships");
+    const supporters = await sponsorRepo.count({
+      where: {
+        project: { id: projectId },
+        status: "paid"
+      }
+    });
 
     res.status(200).json({
       status: true,
@@ -521,7 +532,7 @@ async function getProjectOverview(req, res, next) {
         start_time: project.start_time,
         end_time: project.end_time,
         remaining_days,
-
+        supporters,
         cover: project.cover,
         full_content: project.full_content,
         project_team: project.project_team
@@ -533,7 +544,7 @@ async function getProjectOverview(req, res, next) {
   }
 }
 
-//查詢某個專案（projectId）底下的所有回饋方案（plans）
+//查詢某個專案（projectId）底下的所有回饋方案（plans），包含贊助人數
 async function getProjectPlans(req, res, next) {
   const projectId = parseInt(req.params.projectId);
 
@@ -543,15 +554,23 @@ async function getProjectPlans(req, res, next) {
   try {
     const projectRepo = dataSource.getRepository("Projects");
     const project = await projectRepo.findOneBy({ id: projectId });
+
     if (!project) {
       return next(appError(404, "找不到該專案"));
     }
 
     const planRepo = dataSource.getRepository("ProjectPlans");
 
-    const plans = await planRepo.find({
-      where: { project_id: projectId }
-    });
+    const plans = await planRepo
+      .createQueryBuilder("plan")
+      .where("plan.project_id = :projectId", { projectId })
+      .loadRelationCountAndMap(
+        "plan.sponsor_count", //  quantity 會變成每個 plan 的欄位
+        "plan.sponsorships",
+        "s",
+        qb => qb.where("s.status = :status", { status: "paid" }) // 只計算已付款的
+      )
+      .getMany();
 
     if (plans.length === 0) {
       return next(appError(404, "找不到該提案的回饋方案"));
@@ -654,6 +673,15 @@ async function sponsorProjectPlan(req, res, next) {
     const { project_id, plan_id } = req.params;
     const { sponsorship = {} } = req.body;
     const { display_name, note, amount } = sponsorship;
+<<<<<<< Updated upstream
+=======
+
+    // 檢查登入狀態
+    if (!req.user || !req.user.id) {
+      console.warn(" 無法取得登入使用者資料 (req.user)");
+      return next(appError(401, "請先登入"));
+    }
+>>>>>>> Stashed changes
     const userId = req.user.id;
 
     const pid = parseInt(project_id, 10);
@@ -671,8 +699,20 @@ async function sponsorProjectPlan(req, res, next) {
 
     if (!plan) return next(appError(404, "找不到回饋方案"));
 
+<<<<<<< Updated upstream
     const amt = Number(amount);
     if (!Number.isInteger(amt) || amt < 0) return next(appError(400, "贊助金額必須為正整數"));
+=======
+    //  Log 即將儲存的資料
+    console.log(" 建立贊助紀錄：", {
+      user_id: userId,
+      project_id: pid,
+      plan_id: planId,
+      amount: amt,
+      display_name,
+      note
+    });
+>>>>>>> Stashed changes
 
     const newSponsorship = sponsorRepo.create({
       user: { id: userId },
@@ -684,7 +724,12 @@ async function sponsorProjectPlan(req, res, next) {
       note: note || ""
     });
 
+<<<<<<< Updated upstream
     await sponsorRepo.save(newSponsorship);
+=======
+    const saved = await sponsorRepo.save(newSponsorship);
+    console.log(" 贊助成功，ID:", saved.id);
+>>>>>>> Stashed changes
 
     res.status(200).json({
       status: true,
@@ -695,6 +740,23 @@ async function sponsorProjectPlan(req, res, next) {
     console.error("贊助失敗：", error);
     logger.error("贊助過程中發生錯誤", error);
     next(appError(500, "伺服器錯誤", error));
+    console.error(" 贊助失敗");
+    console.error(" error.message:", error?.message || error);
+    console.error(" error.stack:", error?.stack || "無堆疊資訊");
+    if (error?.detail) console.error(" PostgreSQL Detail:", error.detail);
+    if (error?.query) console.error(" SQL Query:", error.query);
+    if (error?.parameters) console.error(" Params:", error.parameters);
+
+    return res.status(500).json({
+      status: false,
+      message: "伺服器錯誤",
+      debug: {
+        message: error?.message || null,
+        detail: error?.detail || null,
+        query: error?.query || null,
+        parameters: error?.parameters || null
+      }
+    });
   }
 }
 
@@ -714,23 +776,14 @@ async function createProjectSponsorship(req, res, next) {
     const invoiceRepo = dataSource.getRepository("Invoices");
     const invoiceTypeRepo = dataSource.getRepository("InvoiceTypes");
 
-    const project = await projectRepo.findOneBy({
-      id: parseInt(project_id)
-    });
-    if (!project) {
-      return next(appError(404, "找不到該專案"));
-    }
+    const project = await projectRepo.findOneBy({ id: parseInt(project_id) });
+    if (!project) return next(appError(404, "找不到該專案"));
 
     const planIdInt = parseInt(plan_id);
-    if (isNaN(planIdInt)) {
-      return next(appError(400, "回饋方案參數無效"));
-    }
+    if (isNaN(planIdInt)) return next(appError(400, "回饋方案參數無效"));
 
     const plan = await planRepo.findOneBy({ plan_id: planIdInt });
-    console.log(" 查到的回饋方案：", plan);
-    if (!plan) {
-      return next(appError(404, "找不到回饋方案"));
-    }
+    if (!plan) return next(appError(404, "找不到回饋方案"));
 
     const amount = Number(sponsorship.amount);
     if (!Number.isInteger(amount) || amount <= 0) {
@@ -750,6 +803,7 @@ async function createProjectSponsorship(req, res, next) {
     });
     await sponsorshipRepo.save(newSponsorship);
 
+    // 判斷是否有寄送資料
     const hasShippingInfo =
       !!shipping.name?.trim() ||
       !!shipping.phone?.trim() ||
@@ -764,10 +818,13 @@ async function createProjectSponsorship(req, res, next) {
         address: shipping.address?.trim() || "未提供地址",
         note: shipping.note?.trim() || ""
       });
-      await shippingRepo.save(newShipping);
+      const savedShipping = await shippingRepo.save(newShipping);
+      newSponsorship.shipping = savedShipping;
     }
 
-    const invoiceTypeCode = invoice.type?.trim?.();
+    // ✅ 加入 invoiceTypeCode 正確定義
+    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
+
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
       if (!invoiceType) return next(appError(400, "發票類型無效"));
@@ -785,8 +842,12 @@ async function createProjectSponsorship(req, res, next) {
         tax_id: invoice.tax_id?.trim() || null,
         title: invoice.title?.trim() || null
       });
-      await invoiceRepo.save(newInvoice);
+      const savedInvoice = await invoiceRepo.save(newInvoice);
+      newSponsorship.invoice = savedInvoice;
     }
+
+    // 更新 sponsorship 關聯欄位
+    await sponsorshipRepo.save(newSponsorship);
 
     res.status(200).json({
       status: true,
@@ -801,15 +862,9 @@ async function createProjectSponsorship(req, res, next) {
     console.error("建立贊助失敗:", error.message);
     console.error(" error.stack:\n", error.stack);
     console.error(" 完整錯誤物件:", error);
-    if (error?.detail) {
-      console.error(" PG Detail:", error.detail);
-    }
-    if (error?.query) {
-      console.error(" SQL:", error.query);
-    }
-    if (error?.parameters) {
-      console.error(" Params:", error.parameters);
-    }
+    if (error?.detail) console.error(" PG Detail:", error.detail);
+    if (error?.query) console.error(" SQL:", error.query);
+    if (error?.parameters) console.error(" Params:", error.parameters);
 
     return next(appError(500, error.message || "伺服器錯誤"));
   }

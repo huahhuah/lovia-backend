@@ -3,11 +3,15 @@ const { v4: uuidv4 } = require("uuid");
 const { generateLinePaySignature } = require("../utils/linepay");
 const { dataSource } = require("../db/data-source");
 const appError = require("../utils/appError");
+const { sendSponsorSuccessEmail } = require("../utils/sendSponsorSuccessEmail");
+const { sendInvoiceEmail } = require("../utils/sendInvoiceEmail");
 
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
+const SITE_URL = process.env.SITE_URL || "http://localhost:5173";
 const LINEPAY_BASE_URL = "https://sandbox-api-pay.line.me";
+
 const CHANNEL_ID = process.env.LINEPAY_CHANNEL_ID;
 const CHANNEL_SECRET = process.env.LINEPAY_CHANNEL_SECRET;
-const SITE_URL = process.env.SITE_URL || "http://localhost:5173";
 const CURRENCY = "TWD";
 
 console.log(" CHANNEL_SECRET 傳入簽章前 =", {
