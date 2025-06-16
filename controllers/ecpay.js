@@ -45,6 +45,7 @@ async function createEcpayPayment(req, res) {
       TotalAmount: String(Math.round(order.amount)),
       TradeDesc: encodeURIComponent("LoviaSponsorship"),
       ItemName: itemName,
+      ReturnURL: RETURN_URL,
       ClientBackURL: `${process.env.SITE_URL}/#/checkout/result?orderId=${orderId}&method=ecpay`,
       OrderResultURL: `${process.env.SITE_URL}/#/checkout/cancel?orderId=${orderId}&status=cancel`,
       ChoosePayment: paymentType,
