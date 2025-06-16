@@ -99,7 +99,7 @@ async function handleLinePayConfirm(req, res, next) {
     const sponsorship = await sponsorshipRepo.findOne({ where: { order_uuid: orderId } });
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
-    if (sponsorship.payment_status === "paid" && sponsorship.transaction_id === transactionId) {
+    if (sponsorship.status === "paid" && sponsorship.transaction_id === transactionId) {
       return res.redirect(
         `${SITE_URL}/#/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`
       );
@@ -121,7 +121,7 @@ async function handleLinePayConfirm(req, res, next) {
 
     const projectRepo = dataSource.getRepository("Projects");
 
-    sponsorship.payment_status = "paid";
+    sponsorship.status = "paid";
     sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     sponsorship.paid_at = new Date();
     sponsorship.transaction_id = transactionId;
