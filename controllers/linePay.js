@@ -119,12 +119,23 @@ async function handleLinePayConfirm(req, res, next) {
       }
     });
 
+    const projectRepo = dataSource.getRepository("Projects");
+
     sponsorship.payment_status = "paid";
     sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     sponsorship.paid_at = new Date();
     sponsorship.transaction_id = transactionId;
     sponsorship.payment_method = "LINE_PAY";
     await sponsorshipRepo.save(sponsorship);
+
+    //  累加到專案金額
+    const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
+    if (project) {
+      project.amount += sponsorship.amount;
+      await projectRepo.save(project);
+    }
+
+    //  寄出成功信與發票信
     await sendSponsorSuccessEmail(sponsorship);
 
     const invoiceRepo = dataSource.getRepository("Invoices");
