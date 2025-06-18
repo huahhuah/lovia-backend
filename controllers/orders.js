@@ -25,7 +25,7 @@ async function createPaymentRequest(req, res, next) {
   }
 
   // 檢查是否已存在該訂單（避免重複建立付款）
-  const existing = await sponsorshipRepo.findOneBy({ order_uuid: order_id });
+  const existing = await sponsorshipRepo.findOne({ where: { order_uuid: order_id } });
   if (!existing) {
     return next(appError(404, "查無此訂單"));
   }

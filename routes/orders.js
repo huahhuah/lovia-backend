@@ -9,7 +9,7 @@ const jwtSecret = process.env.JWT_SECRET;
 
 //  統一金流付款 API
 router.post(
-  "/:order_id/payment",
+  "/users/orders/:orderId/payment",
   auth({ secret: jwtSecret, userRepository }),
   createPaymentRequest
 );
