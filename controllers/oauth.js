@@ -9,6 +9,7 @@ const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, JWT_SECRET,
 
 async function googleCallback(req, res) {
   const { code } = req.query;
+
   if (!code) return res.status(400).send("Missing authorization code");
 
   try {

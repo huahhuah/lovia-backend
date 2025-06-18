@@ -17,8 +17,10 @@ router.post("/status", auth, users.postStatus);
 router.get("/profile", auth, users.getProfile);
 router.patch("/profile", auth, users.patchProfile);
 router.post("/projects/:project_id/progress", auth, users.postProgress);
-router.put('/:id/password', auth, users.putChangePassword);
-router.patch('/projects/:project_id/progress/:progress_id', auth, users.updateProgress);
-router.post('/postApplication', auth, users.postApplication);
+router.put("/:id/password", auth, users.putChangePassword);
+router.patch("/projects/:project_id/progress/:progress_id", auth, users.updateProgress);
+router.patch("/projects/:project_id/follow", auth, users.toggleFollowStatus);
+router.post("/postApplication", auth, users.postApplication);
+router.get("/me", auth, users.me);
 
 module.exports = router;

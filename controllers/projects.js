@@ -828,24 +828,16 @@ async function createProjectSponsorship(req, res, next) {
     });
     await sponsorshipRepo.save(newSponsorship);
 
-    // 寄送資料
-    const hasShippingInfo =
-      !!shipping.name?.trim() ||
-      !!shipping.phone?.trim() ||
-      !!shipping.address?.trim() ||
-      !!shipping.note?.trim();
-
-    if (hasShippingInfo) {
-      const newShipping = shippingRepo.create({
-        sponsorship: { id: newSponsorship.id },
-        name: shipping.name?.trim() || "未提供姓名",
-        phone: shipping.phone?.trim() || "0912345678",
-        address: shipping.address?.trim() || "未提供地址",
-        note: shipping.note?.trim() || ""
-      });
-      const savedShipping = await shippingRepo.save(newShipping);
-      newSponsorship.shipping = savedShipping;
-    }
+    // 寄送資料（不管使用者是否有填，一律建立）
+    const newShipping = shippingRepo.create({
+      sponsorship: { id: newSponsorship.id },
+      name: shipping.name?.trim() || "未提供姓名",
+      phone: shipping.phone?.trim() || "0912345678",
+      address: shipping.address?.trim() || "未提供地址",
+      note: shipping.note?.trim() || ""
+    });
+    const savedShipping = await shippingRepo.save(newShipping);
+    newSponsorship.shipping = savedShipping;
 
     // 發票資料
     const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
