@@ -628,6 +628,85 @@ async function postApplication(req, res, next) {
   }
 }
 
+// 專案追蹤/取消追蹤
+async function toggleFollowStatus(req, res, next) {
+  try {
+    const { project_id } = req.params;
+    const userId = req.user.id;
+
+    const userRepo = dataSource.getRepository("Users");
+    const projectRepo = dataSource.getRepository("Projects");
+    const followRepo = dataSource.getRepository("Follows");
+
+    const user = await userRepo.findOne({ where: { id: userId } });
+    const project = await projectRepo.findOne({ where: { id: project_id } });
+    if (!user || !project) {
+      return next(appError(404, "專案或使用者不存在"));
+    }
+
+    let followRecord = await followRepo.findOne({
+      where: {
+        user: { id: userId },
+        project: { id: project_id }
+      },
+      relations: ["user", "project"]
+    });
+
+    if (!followRecord) {
+      followRecord = followRepo.create({
+        user,
+        project,
+        follow: true
+      });
+      await followRepo.save(followRecord);
+      return res.status(201).json({
+        message: "成功追蹤專案",
+        follow: true
+      });
+    }
+    followRecord.follow = !followRecord.follow;
+    await followRepo.save(followRecord);
+    return res.status(200).json({
+      message: followRecord.follow ? "成功追蹤專案" : "取消追蹤專案",
+      follow: followRecord.follow
+    });
+  } catch (error) {
+    logger.error("更新失敗", error);
+    next(error);
+  }
+}
+
+//第三方登入
+async function me(req, res, next) {
+  try {
+    const userRepo = dataSource.getRepository("Users");
+    const user = await userRepo.findOne({
+      where: { id: req.user.id },
+      relations: ["role"], // 確保角色資料有 join
+      select: ["id", "account", "username", "avatar_url"]
+    });
+
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "找不到使用者" });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        id: user.id,
+        account: user.account,
+        username: user.username,
+        avatar_url: user.avatar_url,
+        role: {
+          role_type: user.role.role_type
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
@@ -637,5 +716,7 @@ module.exports = {
   postProgress,
   putChangePassword,
   updateProgress,
-  postApplication
+  postApplication,
+  toggleFollowStatus,
+  me
 };
