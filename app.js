@@ -14,6 +14,7 @@ const ordersRouter = require("./routes/orders");
 const webhookRouter = require("./routes/webhooks");
 const ecPaytRoutes = require("./routes/ecpay");
 const emailRoutes = require("./routes/email");
+const oauthRoutes = require("./routes/oauth");
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use("/api/v1/webhooks", webhookRouter);
 app.use("/api/v1/linepay", linePayRoutes);
 app.use("/api/v1", emailRoutes);
 app.use("/api/v1", ecPaytRoutes);
+app.use("/api/v1/auth", oauthRoutes);
 
 app.get("/healthcheck", (req, res) => {
   res.status(200);
