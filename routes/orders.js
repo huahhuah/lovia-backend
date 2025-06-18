@@ -9,13 +9,13 @@ const jwtSecret = process.env.JWT_SECRET;
 
 //  統一金流付款 API
 router.post(
-  "/users/orders/:orderId/payment",
+  "/users/orders/:order_id/payment",
   auth({ secret: jwtSecret, userRepository }),
   createPaymentRequest
 );
 
 router.get(
-  "/:order_id/payment/success",
+  "/users/orders/:order_id/payment/success",
   auth({ secret: jwtSecret, userRepository }),
   getPaymentSuccessInfo
 );
