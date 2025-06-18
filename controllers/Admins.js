@@ -8,6 +8,8 @@ const jwtSecret = config.get("secret").jwtSecret;
 const appError = require("../utils/appError");
 const Proposer_statuses = require("../entities/Proposer_statuses");
 const sendEmail = require("../services/email");
+const Project_comments = require("../entities/Project_comments");
+const { createTransport } = require("nodemailer");
 
 // 取得所有使用者資料
 async function getAllUsers(req, res, next){
@@ -61,7 +63,6 @@ async function getAllUsers(req, res, next){
 // 取得會員詳情
 async function getUsersInfo(req, res, next){
     const { user_id } = req.params;
-    console.log(user_id);
     if(req.user.role_id !== 3){
         return next(appError(401, '你沒有察看的權限'));
     }
@@ -171,9 +172,73 @@ async function patchProposerStatus(req, res, next){
         }
 }
 
+// 取得提案列表
+async function getAllProjects(req, res, next){
+    try{
+        const { page = 1 } =req.query;
+        const currentPage = Math.max(parseInt(page, 10) || 1,1);
+        const pageSize =10;
+        const user = req.user;
+        if(user.role_id !== 3){
+            return next(appError(401, '你沒有權限觀看'))
+        }
+        const projectRepo = dataSource.getRepository("Projects");
+        const [projects, total] = await projectRepo.findAndCount({
+            skip: (currentPage -1 )* pageSize,
+            take: pageSize,
+            order: {created_at: "ASC"},
+            relations: ["user", "projectPlans","category","follows"]
+        })
+        const projectInfo = []
+        projects.forEach(item => {
+            projectInfo.push ({
+                id: item.id,
+                name: item.user?.username,
+                email: item.user?.account,
+                phone: item.user?.phone || null,
+                title: item.title,
+                summary: item.summary,
+                category: item.category?.name,
+                total_amount: item.total_amount,
+                start_time: item.start_time,
+                end_time: item.end_time,
+                cover: item.cover,
+                full_content: item.full_content,
+                project_team: item.project_team,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+                faq: item.faq,
+                plans: item.projectPlans.map(plan => ({
+                    plan_name: plan.plan_name,
+                    plan_amount: plan.amount,
+                    quantity: plan.quantity,
+                    feedback: plan.feedback,
+                    delivery_date: plan.delivery_date
+                }))
+    })})
+    const result = {
+        data: projectInfo,
+        pagination: {
+            total,
+            currentPage,
+            pageSize,
+            totalPages: Math.ceil(total/ pageSize)
+        }
+    }
+        res.status(200).json({
+            status: true,
+            message: '查詢成功',
+            result
+        })
+    } catch (error){
+        next (error)
+    }
+}
+
 module.exports = {
     getAllUsers,
     getUsersInfo,
     getProposerApplication,
-    patchProposerStatus
+    patchProposerStatus,
+    getAllProjects
 }

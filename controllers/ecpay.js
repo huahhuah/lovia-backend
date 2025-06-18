@@ -15,7 +15,7 @@ async function createEcpayPayment(req, res) {
     const repo = dataSource.getRepository(Sponsorships);
     const order = await repo.findOne({
       where: { order_uuid: orderId },
-      relations: ["plan"]
+      relations: ["plan", "user"]
     });
 
     if (!order) return res.status(404).send("訂單不存在");
@@ -25,14 +25,14 @@ async function createEcpayPayment(req, res) {
     const now = new Date();
     const tradeNo = "ECPAY" + now.getTime();
 
-    const rawName = req.body.productName || order.plan?.title || "贊助方案";
+    const rawName = (req.body.productName || order.plan?.title || "贊助方案").trim();
     const itemName = rawName
       .replace(/[^\u4e00-\u9fa5a-zA-Z0-9 ]/g, "")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 100);
 
-    const paymentType = req.body.payment_type === "atm" ? "ATM" : "Credit";
+    const paymentType = (req.body.payment_type || "").toLowerCase() === "atm" ? "ATM" : "Credit";
 
     order.payment_trade_no = tradeNo.slice(0, 20);
     await repo.save(order);
@@ -46,16 +46,19 @@ async function createEcpayPayment(req, res) {
       TradeDesc: encodeURIComponent("LoviaSponsorship"),
       ItemName: itemName,
       ReturnURL: RETURN_URL,
-      ClientBackURL: CLIENT_BACK_URL,
+      ClientBackURL: `${process.env.SITE_URL}/#/checkout/result?orderId=${orderId}&method=ecpay`,
+      OrderResultURL: `${process.env.SITE_URL}/#/checkout/cancel?orderId=${orderId}&status=cancel`,
       ChoosePayment: paymentType,
       CustomField1: orderId,
       CustomField2: tradeNo,
+      CustomField3: order.user?.id || "",
+      Email: order.user?.email?.trim() || "test@example.com",
       EncryptType: 1
     };
 
     if (paymentType === "ATM") {
       params.ExpireDate = 3;
-      params.PaymentInfoURL = process.env.ECPAY_PAYMENT_INFO_URL || RETURN_URL;
+      params.PaymentInfoURL = process.env.ECPAY_PAYMENT_INFO_URL || process.env.ECPAY_RETURN_URL;
     }
 
     params.CheckMacValue = createCheckMacValue(params, true);
@@ -77,13 +80,15 @@ async function handleEcpayATMInfo(req, res) {
   try {
     const { MerchantTradeNo, PaymentNo, BankCode, ExpireDate, CustomField1 } = req.body;
     if (!MerchantTradeNo || !CustomField1 || !PaymentNo || !BankCode || !ExpireDate) {
-      console.warn(" ATM 通知缺少參數：", req.body);
+      console.warn(" ATM 通知缺少參數：", { order_uuid: CustomField1, body: req.body });
       return res.send("0|MISSING_PARAMS");
     }
 
     const repo = dataSource.getRepository(Sponsorships);
     const order = await repo.findOneBy({ order_uuid: CustomField1 });
     if (!order) return res.send("0|NOT_FOUND");
+
+    if (order.payment_status === "paid") return res.send("1|ALREADY_PAID");
 
     order.payment_method = "ATM";
     order.payment_status = "pending";
@@ -119,24 +124,31 @@ async function handleEcpayCallback(req, res) {
 
     const order = await repo.findOne({
       where: { order_uuid: CustomField1 },
-      relations: ["user", "invoice", "invoice.type"]
+      relations: ["user", "invoice", "invoice.type", "project"]
     });
 
     if (!order) return res.send("0|NOT_FOUND");
     if (parseInt(RtnCode) !== 1) return res.send("0|FAIL");
+    if (order.status === "paid") return res.send("1|OK");
     if (order.payment_trade_no !== MerchantTradeNo) return res.send("0|TRADE_NO_MISMATCH");
+    if (parseInt(TradeAmt) !== Math.round(order.amount)) return res.send("0|AMOUNT_MISMATCH");
 
-    order.payment_status = "paid";
+    // 更新訂單狀態（改用正確欄位名稱）
+    order.status = "paid";
     order.paid_at = new Date(PaymentDate || Date.now());
-    order.payment_type = PaymentType;
+    order.payment_method = PaymentType;
     order.payment_result = JSON.stringify(req.body);
-
     await repo.save(order);
 
-    //  debug：檢查發票型別
-    console.log(" 發票類型名稱：", order.invoice?.type?.name);
+    //  累加至對應專案金額
+    const projectRepo = dataSource.getRepository("Projects");
+    const project = await projectRepo.findOneBy({ id: order.project.id });
+    if (project) {
+      project.amount += order.amount;
+      await projectRepo.save(project);
+    }
 
-    //  寄送通知信與發票
+    //  寄送成功信件與發票（若不是捐贈）
     try {
       await sendSponsorSuccessEmail(order);
 
