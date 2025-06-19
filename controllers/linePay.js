@@ -101,7 +101,7 @@ async function handleLinePayConfirm(req, res, next) {
 
     if (sponsorship.status === "paid" && sponsorship.transaction_id === transactionId) {
       return res.redirect(
-        `${SITE_URL}/#/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`
+        `${SITE_URL}/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`
       );
     }
 

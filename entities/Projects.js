@@ -77,7 +77,7 @@ module.exports = new EntitySchema({
       default: () => "CURRENT_TIMESTAMP"
     },
     status: {
-      type: 'int',
+      type: "int",
       default: 1
     },
     reason: {
