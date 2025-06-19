@@ -80,6 +80,11 @@ module.exports = new EntitySchema({
       type: 'int',
       default: 1
     },
+    reason: {
+      type: "varchar",
+      length: 100,
+      nullable: true
+    }
   },
   relations: {
     user: {
@@ -107,7 +112,7 @@ module.exports = new EntitySchema({
     projectStatus: {
       type: "many-to-one",
       target: "ProjectStatuses",
-      joinColumn: { name: "ProjectsStatuses_id"},  
+      joinColumn: { name: "status"},  
       inverseSide: "projects"
     }
   }

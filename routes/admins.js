@@ -16,5 +16,6 @@ router.get("/users/:user_id", auth, admins.getUsersInfo);
 router.get("/proposerApplication", auth, admins.getProposerApplication);
 router.patch("/proposerStatus", auth, admins.patchProposerStatus);
 router.get("/projects", auth, admins.getAllProjects);
+router.patch("/projects/:projectId", auth, admins.patchProjectStatus);
 
 module.exports = router;
