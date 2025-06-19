@@ -487,8 +487,9 @@ async function getProjectOverview(req, res, next) {
     // 查詢 project 本身資料（需包含 category 關聯）
     const project = await projectRepo.findOne({
       where: { id: projectId },
-      relations: ["category"]
+      relations: ["category", "projectStatus"]
     });
+    console.log("查到的 project 資料：", project);
 
     if (!project) {
       return next(appError(404, "找不到該專案"));
@@ -538,7 +539,14 @@ async function getProjectOverview(req, res, next) {
       }
     });
   } catch (err) {
-    logger.error("查詢提案概覽失敗", err);
+    console.error("❌ 捕捉到錯誤:", err);
+    logger.error("查詢提案概覽失敗", {
+      message: err.message,
+      stack: err.stack,
+      detail: err?.detail,
+      query: err?.query,
+      parameters: err?.parameters
+    });
     return next(appError(500, "查詢提案資料時發生錯誤"));
   }
 }

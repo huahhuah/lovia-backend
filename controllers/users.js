@@ -676,6 +676,29 @@ async function toggleFollowStatus(req, res, next) {
   }
 }
 
+// 查詢追蹤
+async function getFollowStatus(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const projectId = parseInt(req.params.project_id);
+
+    const followRepo = dataSource.getRepository("Follows");
+    const record = await followRepo.findOne({
+      where: {
+        user: { id: userId },
+        project: { id: projectId },
+        follow: true
+      }
+    });
+
+    res.status(200).json({
+      follow: !!record
+    });
+  } catch (err) {
+    next(appError(500, "查詢收藏狀態失敗", next));
+  }
+}
+
 //第三方登入
 async function me(req, res, next) {
   try {
@@ -718,5 +741,6 @@ module.exports = {
   updateProgress,
   postApplication,
   toggleFollowStatus,
+  getFollowStatus,
   me
 };

@@ -57,7 +57,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
     try {
       const decoded = await verifyJWT(token, secret);
 
-      // ✅ 改用 findOne + relations 取得 role 資訊
+      //  改用 findOne + relations 取得 role 資訊
       const user = await userRepository.findOne({
         where: { id: decoded.id },
         relations: ["role"]
@@ -68,7 +68,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
         return next(generateError(PERMISSION_DENIED, FailedMessageMap.invalid));
       }
 
-      // ✅ 組裝 req.user，提供 avatar_url 與 role_type 給前端用
+      //  組裝 req.user，提供 avatar_url 與 role_type 給前端用
       req.user = {
         id: user.id,
         account: user.account,
