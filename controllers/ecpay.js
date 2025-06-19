@@ -128,13 +128,13 @@ async function handleEcpayCallback(req, res) {
 
     if (!order) return res.send("0|NOT_FOUND");
     if (parseInt(RtnCode) !== 1) return res.send("0|FAIL");
-    if (order.status === "paid") return res.send("1|OK");
+    if (order.payment_status === "paid") return res.send("1|OK");
     if (order.payment_trade_no !== MerchantTradeNo) return res.send("0|TRADE_NO_MISMATCH");
     if (parseInt(TradeAmt) !== Math.round(order.amount)) return res.send("0|AMOUNT_MISMATCH");
 
     // 更新訂單狀態（改用正確欄位名稱）
-    order.status = "paid";
-    order.paid_at = new Date(PaymentDate || Date.now());
+    order.payment_status = "paid";
+    order.paid_at = new Date(PaymentDate.replace(" ", "T") || Date.now());
     order.payment_method = PaymentType;
     order.payment_result = JSON.stringify(req.body);
     await repo.save(order);
@@ -148,17 +148,14 @@ async function handleEcpayCallback(req, res) {
     }
 
     //  寄送成功信件與發票（若不是捐贈）
-    try {
-      await sendSponsorSuccessEmail(order);
+    const invoiceType = order.invoice?.type?.name;
 
-      const invoiceType = order.invoice?.type?.name;
-      if (invoiceType && invoiceType !== "donate") {
-        await sendInvoiceEmail(order, order.invoice);
-      }
-    } catch (mailErr) {
-      console.error(" 發送付款或發票信失敗：", mailErr);
-    }
-
+    await Promise.allSettled([
+      sendSponsorSuccessEmail(order),
+      invoiceType && invoiceType !== "donate"
+        ? sendInvoiceEmail(order, order.invoice)
+        : Promise.resolve()
+    ]);
     return res.send("1|OK");
   } catch (err) {
     console.error(" 綠界付款完成通知錯誤：", err);
