@@ -75,7 +75,11 @@ module.exports = new EntitySchema({
     created_at: {
       type: "timestamp",
       default: () => "CURRENT_TIMESTAMP"
-    }
+    },
+    status: {
+      type: 'int',
+      default: 1
+    },
   },
   relations: {
     user: {
@@ -99,6 +103,12 @@ module.exports = new EntitySchema({
       type: "one-to-many",
       target: "Follows",
       inverseSide: "project"
+    },
+    projectStatus: {
+      type: "many-to-one",
+      target: "ProjectStatuses",
+      joinColumn: { name: "ProjectsStatuses_id"},  
+      inverseSide: "projects"
     }
   }
 });
