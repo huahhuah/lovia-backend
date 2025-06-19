@@ -182,12 +182,13 @@ async function getAllProjects(req, res, next){
         if(user.role_id !== 3){
             return next(appError(401, '你沒有權限觀看'))
         }
+
         const projectRepo = dataSource.getRepository("Projects");
         const [projects, total] = await projectRepo.findAndCount({
             skip: (currentPage -1 )* pageSize,
             take: pageSize,
             order: {created_at: "ASC"},
-            relations: ["user", "projectPlans","category","follows"]
+            relations: ["user", "projectPlans","category","follows","projectStatus"]
         })
         const projectInfo = []
         projects.forEach(item => {
@@ -208,6 +209,8 @@ async function getAllProjects(req, res, next){
                 created_at: item.created_at,
                 updated_at: item.updated_at,
                 faq: item.faq,
+                status: item.status,
+                status_name: item.projectStatus?.status,
                 plans: item.projectPlans.map(plan => ({
                     plan_name: plan.plan_name,
                     plan_amount: plan.amount,
@@ -235,10 +238,61 @@ async function getAllProjects(req, res, next){
     }
 }
 
+// 審查提案
+async function patchProjectStatus(req, res, next){
+    try{
+        const { projectId } = req.params;
+        const { status, reason } = req.body;
+
+        const userRepo = dataSource.getRepository("Users");
+        const projectRepo = dataSource.getRepository("Projects");
+        const statusRepo = dataSource.getRepository("ProjectStatuses");
+        const project = await projectRepo.findOne({
+            where: { id: projectId },
+            relations: ["user","projectStatus"]
+        })
+        if (!project){
+            return next(appError(404, '找不到提案' ));
+        }
+        const newStatus = await statusRepo.findOne({
+            where: {id: status}
+        })
+
+        if (!newStatus) {
+            return next(appError(400, '無效的狀態 ID'));
+        }
+        project.projectStatus = newStatus;
+        await projectRepo.save(project);
+
+        // email通知
+        if(status ===2 || status ===3){
+            let subject = '提案審核結果通知';
+            let message = '';
+            if (status === 2){
+                message = `您好，有關貴單位於${project.created_at}提案一事，已通過審核。\n\n歡迎登入平台讓改變開始，讓夢想成真。`;
+            } else if (status ===3){
+                message = `您好，有關貴單位於${project.created_at}提案一事，未通過審核。\n\n未通過原因：${ reason || "未提供原因"}`;
+            }
+            await sendEmail({
+                to: project.user.account,
+                subject,
+                message,
+            });
+        }
+        res.status(200).json({
+            status: true,
+            message: '審查完畢，資料已更新'
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 module.exports = {
     getAllUsers,
     getUsersInfo,
     getProposerApplication,
     patchProposerStatus,
-    getAllProjects
+    getAllProjects,
+    patchProjectStatus
 }
