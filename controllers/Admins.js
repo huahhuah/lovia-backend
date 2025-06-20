@@ -188,7 +188,7 @@ async function getAllProjects(req, res, next){
 
         const projectRepo = dataSource.getRepository("Projects");
         const [projects, total] = await projectRepo.findAndCount({
-            where: { status: 1 }
+            where: { status: 1 },
             skip: (currentPage -1 )* pageSize,
             take: pageSize,
             order: {created_at: "ASC"},
@@ -213,8 +213,7 @@ async function getAllProjects(req, res, next){
                 created_at: item.created_at,
                 updated_at: item.updated_at,
                 faq: item.faq,
-                status: item.status,
-                status_name: item.projectStatus?.status,
+                status_id: item.status,
                 plans: item.projectPlans.map(plan => ({
                     plan_name: plan.plan_name,
                     plan_amount: plan.amount,
@@ -265,6 +264,7 @@ async function patchProjectStatus(req, res, next){
         if (!newStatus) {
             return next(appError(400, '無效的狀態 ID'));
         }
+        project.status = status;
         project.projectStatus = newStatus;
         await projectRepo.save(project);
 
