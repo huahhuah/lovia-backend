@@ -266,6 +266,7 @@ async function patchProjectStatus(req, res, next){
         }
         project.status = status;
         project.projectStatus = newStatus;
+        project.reason = reason;
         await projectRepo.save(project);
 
         const created_at = new Date(project.created_at).toLocaleString("zh-TW", {
