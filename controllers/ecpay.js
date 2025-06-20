@@ -128,6 +128,7 @@ async function handleEcpayCallback(req, res) {
     }
 
     const repo = dataSource.getRepository(Sponsorships);
+
     const order = await repo.findOne({
       where: { order_uuid: CustomField1 },
       relations: ["user", "invoice", "invoice.type", "project"]
@@ -153,9 +154,14 @@ async function handleEcpayCallback(req, res) {
       return res.send("0|AMOUNT_MISMATCH");
     }
 
+    // 解析付款時間（處理綠界格式錯誤）
+    const paidAtRaw = PaymentDate?.replace(" ", "T");
+    const paidAt = new Date(paidAtRaw);
+    order.paid_at = isNaN(paidAt.getTime()) ? new Date() : paidAt;
+    console.log(" 付款時間解析結果：", order.paid_at.toISOString());
+
     //  更新訂單資料
     order.status = "paid";
-    order.paid_at = new Date(PaymentDate.replace(" ", "T") || Date.now());
     order.payment_method = PaymentType || "ECPAY";
     order.transaction_id = MerchantTradeNo;
 
@@ -165,6 +171,7 @@ async function handleEcpayCallback(req, res) {
     //  專案金額累加
     const projectRepo = dataSource.getRepository("Projects");
     const project = await projectRepo.findOneBy({ id: order.project.id });
+
     if (project) {
       project.amount += order.amount;
       await projectRepo.save(project);
@@ -173,6 +180,7 @@ async function handleEcpayCallback(req, res) {
 
     //  寄送信件（若非捐贈）
     const invoiceType = order.invoice?.type?.name;
+
     await Promise.allSettled([
       sendSponsorSuccessEmail(order),
       invoiceType && invoiceType !== "donate"
@@ -182,7 +190,7 @@ async function handleEcpayCallback(req, res) {
 
     return res.send("1|OK");
   } catch (err) {
-    console.error("❌ 綠界付款完成通知錯誤：", err);
+    console.error(" 綠界付款完成通知錯誤：", err);
     return res.send("0|SERVER_ERROR");
   }
 }

@@ -756,7 +756,7 @@ async function getSponsorshipResult(req, res, next) {
         payment_method: sponsorship.payment_method,
         status: sponsorship.status,
         display_name: sponsorship.display_name,
-        email: sponsorship.user.email,
+        email: sponsorship.user.account,
         note: sponsorship.note,
         shipping: sponsorship.shipping || {},
         invoice: sponsorship.invoice || {}
