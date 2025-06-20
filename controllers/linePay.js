@@ -96,13 +96,20 @@ async function handleLinePayConfirm(req, res, next) {
     if (!transactionId || !orderId) return next(appError(400, "缺少必要參數"));
 
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
-    const sponsorship = await sponsorshipRepo.findOne({ where: { order_uuid: orderId } });
+
+    // 查詢 sponsorship（含 eager 關聯 invoice, shipping）
+    const sponsorship = await sponsorshipRepo.findOne({
+      where: { order_uuid: orderId }
+    });
+
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
+    // 若已付款不重複更新，直接導回結果頁
     if (sponsorship.status === "paid" && sponsorship.transaction_id === transactionId) {
       return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}`);
     }
 
+    // 發送 LINE Pay Confirm API 請求
     const uri = `/v3/payments/${transactionId}/confirm`;
     const nonce = uuidv4();
     const confirmBody = { amount: sponsorship.amount, currency: CURRENCY };
@@ -117,31 +124,42 @@ async function handleLinePayConfirm(req, res, next) {
       }
     });
 
-    const projectRepo = dataSource.getRepository("Projects");
-
+    // 更新 sponsorship 資料
     sponsorship.status = "paid";
-    sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     sponsorship.paid_at = new Date();
     sponsorship.transaction_id = transactionId;
     sponsorship.payment_method = "LINE_PAY";
+    sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     await sponsorshipRepo.save(sponsorship);
 
-    //  累加到專案金額
+    // 更新 project 募資總金額
+    const projectRepo = dataSource.getRepository("Projects");
     const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
     if (project) {
       project.amount += sponsorship.amount;
       await projectRepo.save(project);
     }
 
-    //  寄出成功信與發票信
-    await sendSponsorSuccessEmail(sponsorship);
+    //  寄出贊助成功通知信
+    try {
+      await sendSponsorSuccessEmail(sponsorship);
+    } catch (err) {
+      console.error("寄送成功信失敗:", err.message);
+    }
 
-    const invoiceRepo = dataSource.getRepository("Invoices");
-    const invoice = await invoiceRepo.findOneBy({ sponsorship_id: sponsorship.id });
-    if (invoice) await sendInvoiceEmail(sponsorship, invoice);
+    //  寄送發票信（用 sponsorship.invoice，不要自己查）
+    if (sponsorship.invoice) {
+      try {
+        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+      } catch (err) {
+        console.error("寄送發票信失敗:", err.message);
+      }
+    } else {
+      console.warn(" 尚未建立 invoice，無法寄送發票信");
+    }
 
-    const redirectUrl = `${SITE_URL}/checkout/result?orderId=${orderId}`;
-    res.redirect(redirectUrl);
+    // 導回結果頁
+    return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}`);
   } catch (err) {
     console.error("LINE Pay Confirm 發生錯誤:", err?.response?.data || err.message);
     return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
