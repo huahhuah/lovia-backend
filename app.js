@@ -37,7 +37,7 @@ if (process.env.NODE_ENV === "production") {
 //  Middleware 設定
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 app.use(
   pinoHttp({
     logger,

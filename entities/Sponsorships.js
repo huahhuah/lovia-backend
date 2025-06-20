@@ -56,6 +56,10 @@ module.exports = new EntitySchema({
       type: "varchar",
       length: 100,
       nullable: true
+    },
+    payment_result: {
+      type: "text",
+      nullable: true
     }
   },
   relations: {
