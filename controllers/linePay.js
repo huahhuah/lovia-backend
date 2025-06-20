@@ -100,9 +100,7 @@ async function handleLinePayConfirm(req, res, next) {
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
     if (sponsorship.status === "paid" && sponsorship.transaction_id === transactionId) {
-      return res.redirect(
-        `${SITE_URL}/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`
-      );
+      return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}`);
     }
 
     const uri = `/v3/payments/${transactionId}/confirm`;
@@ -142,17 +140,17 @@ async function handleLinePayConfirm(req, res, next) {
     const invoice = await invoiceRepo.findOneBy({ sponsorship_id: sponsorship.id });
     if (invoice) await sendInvoiceEmail(sponsorship, invoice);
 
-    const redirectUrl = `${SITE_URL}/#/checkout/result?orderId=${orderId}&transactionId=${transactionId}&method=linepay`;
+    const redirectUrl = `${SITE_URL}/checkout/result?orderId=${orderId}`;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error("LINE Pay Confirm 發生錯誤:", err?.response?.data || err.message);
-    return res.redirect(`${SITE_URL}/#/payment/PaymentCancel`);
+    return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
   }
 }
 
 // [3] 取消付款導回
 function handleLinePayCancel(req, res) {
-  return res.redirect(`${SITE_URL}/#/payment/PaymentCancel`);
+  return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
 }
 
 // [4] 查詢付款狀態（前端頁面主動查詢）
