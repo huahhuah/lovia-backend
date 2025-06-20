@@ -23,5 +23,6 @@ router.patch("/projects/:project_id/follow", auth, users.toggleFollowStatus);
 router.get("/projects/:project_id/follow-status", auth, users.getFollowStatus);
 router.post("/postApplication", auth, users.postApplication);
 router.get("/me", auth, users.me);
+router.get("/sponsorships/:order_uuid/result", auth, users.getSponsorshipResult);
 
 module.exports = router;

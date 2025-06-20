@@ -751,9 +751,9 @@ async function sponsorProjectPlan(req, res, next) {
     console.error(" 贊助失敗");
     console.error(" error.message:", error?.message || error);
     console.error(" error.stack:", error?.stack || "無堆疊資訊");
-    if (error?.detail) console.error("🔍 PostgreSQL Detail:", error.detail);
-    if (error?.query) console.error("📄 SQL Query:", error.query);
-    if (error?.parameters) console.error("📦 Params:", error.parameters);
+    if (error?.detail) console.error(" PostgreSQL Detail:", error.detail);
+    if (error?.query) console.error(" SQL Query:", error.query);
+    if (error?.parameters) console.error(" Params:", error.parameters);
 
     return res.status(500).json({
       status: false,
@@ -773,6 +773,8 @@ async function createProjectSponsorship(req, res, next) {
   const { project_id, plan_id } = req.params;
   const { sponsorship = {}, invoice = {}, shipping = {} } = req.body;
   const userId = req.user?.id;
+
+  console.log("接收到的 shipping:", shipping); // Debug log
 
   try {
     if (!userId) return next(appError(401, "請先登入再進行贊助"));
@@ -798,7 +800,6 @@ async function createProjectSponsorship(req, res, next) {
       return next(appError(400, "贊助金額必須為正整數"));
     }
 
-    // ✅ 防止重複建立相同未付款訂單
     const existing = await sponsorshipRepo.findOne({
       where: {
         user: { id: userId },
@@ -810,7 +811,21 @@ async function createProjectSponsorship(req, res, next) {
       relations: ["invoice", "shipping"]
     });
 
+    // 如果已有訂單但沒有 shipping，補上 shipping
     if (existing) {
+      if (!existing.shipping) {
+        const newShipping = shippingRepo.create({
+          sponsorship: { id: existing.id },
+          name: shipping?.name?.trim() || "未提供姓名",
+          phone: shipping?.phone?.trim() || "0912345678",
+          address: shipping?.address?.trim() || "未提供地址",
+          note: shipping?.note?.trim() || ""
+        });
+        const savedShipping = await shippingRepo.save(newShipping);
+        existing.shipping = savedShipping;
+        await sponsorshipRepo.save(existing);
+      }
+
       return res.status(200).json({
         status: true,
         message: "已有相同金額的未付款訂單，請完成付款",
@@ -836,18 +851,18 @@ async function createProjectSponsorship(req, res, next) {
     });
     await sponsorshipRepo.save(newSponsorship);
 
-    // 寄送資料（不管使用者是否有填，一律建立）
+    // 建立 shipping（保證一定寫入）
     const newShipping = shippingRepo.create({
       sponsorship: { id: newSponsorship.id },
-      name: shipping.name?.trim() || "未提供姓名",
-      phone: shipping.phone?.trim() || "0912345678",
-      address: shipping.address?.trim() || "未提供地址",
-      note: shipping.note?.trim() || ""
+      name: shipping?.name?.trim() || "未提供姓名",
+      phone: shipping?.phone?.trim() || "0912345678",
+      address: shipping?.address?.trim() || "未提供地址",
+      note: shipping?.note?.trim() || ""
     });
     const savedShipping = await shippingRepo.save(newShipping);
     newSponsorship.shipping = savedShipping;
 
-    // 發票資料
+    // 建立 invoice（若有傳 type）
     const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });

@@ -7,6 +7,7 @@ const MERCHANT_ID = process.env.ECPAY_MERCHANT_ID;
 const RETURN_URL = process.env.ECPAY_RETURN_URL;
 const CLIENT_BACK_URL = `${process.env.SITE_URL}/checkout/result`;
 
+//綠界付款
 async function createEcpayPayment(req, res) {
   try {
     const { orderId } = req.params;
@@ -75,6 +76,7 @@ async function createEcpayPayment(req, res) {
   }
 }
 
+//AMT
 async function handleEcpayATMInfo(req, res) {
   try {
     const { MerchantTradeNo, PaymentNo, BankCode, ExpireDate, CustomField1 } = req.body;
@@ -106,6 +108,7 @@ async function handleEcpayATMInfo(req, res) {
   }
 }
 
+//綠界callback
 async function handleEcpayCallback(req, res) {
   try {
     const {
