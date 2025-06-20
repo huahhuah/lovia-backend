@@ -903,8 +903,7 @@ async function getMyProjects(req, res, next) {
 
     const projectRepo = dataSource.getRepository("Projects");
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
-    const shippingRepo = dataSource.getRepository("Shippings");
-
+    
     const projects = await projectRepo.find({
       where: { user: { id: userId } },
       order: { id: "DESC" },
@@ -920,19 +919,14 @@ async function getMyProjects(req, res, next) {
         .select("SUM(s.amount)", "total")
         .getRawOne();
 
-      const hasShipping = await shippingRepo.findOne({
-        where: { sponsorship: { project: { id: p.id } } },
-        relations: ["sponsorship"]
-      });
-
-      result.push({
+       result.push({
         id: p.id,
         title: p.title,
         targetAmount: p.total_amount,
         supportAmount: parseInt(supportTotal?.total || 0),
         status: p.project_type || "未設定", // ← 加這行
         rewardItem: p.projectPlans?.[0]?.feedback || "-", // ✅ 改這行
-        shippingInfo: !!hasShipping
+        canAddProgress: true
       });
     }
 
