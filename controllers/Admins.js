@@ -268,14 +268,21 @@ async function patchProjectStatus(req, res, next){
         project.projectStatus = newStatus;
         await projectRepo.save(project);
 
+        const created_at = new Date(project.created_at).toLocaleString("zh-TW", {
+            timeZone: "Asia/Taipei",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          })
+
         // email通知
         if(status ===2 || status ===3){
             let subject = '提案審核結果通知';
             let message = '';
             if (status === 2){
-                message = `您好，有關貴單位於${project.created_at}之「${project.title}」，已通過審核。\n\n感謝您願意與我們一起讓改變開始，讓夢想成真。`;
+                message = `您好，有關貴單位於${created_at}之「${project.title}」，已通過審核。\n\n感謝您願意與我們一起讓改變開始，讓夢想成真。`;
             } else if (status ===3){
-                message = `您好，有關貴單位於${project.created_at}之「${project.title}」，經審未通過。\n\n未通過原因：${ reason || "未提供原因"}`;
+                message = `您好，有關貴單位於${created_at}之「${project.title}」，經審未通過。\n\n未通過原因：${ reason || "未提供原因"}`;
             }
             await sendEmail({
                 to: project.user.account,
