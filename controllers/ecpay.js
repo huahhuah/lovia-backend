@@ -120,35 +120,58 @@ async function handleEcpayCallback(req, res) {
       CustomField1 // order_uuid
     } = req.body;
 
-    if (!MerchantTradeNo || !CustomField1) return res.send("0|ERROR");
+    console.log(" 綠界 callback 收到資料：", req.body);
+
+    if (!MerchantTradeNo || !CustomField1) {
+      console.warn(" 缺少必要欄位 MerchantTradeNo 或 CustomField1");
+      return res.send("0|ERROR");
+    }
 
     const repo = dataSource.getRepository(Sponsorships);
-
     const order = await repo.findOne({
       where: { order_uuid: CustomField1 },
       relations: ["user", "invoice", "invoice.type", "project"]
     });
 
-    if (!order) return res.send("0|NOT_FOUND");
-    if (parseInt(RtnCode) !== 1) return res.send("0|FAIL");
-    if (order.status === "paid") return res.send("1|OK");
-    if (parseInt(TradeAmt) !== Math.round(order.amount)) return res.send("0|AMOUNT_MISMATCH");
+    if (!order) {
+      console.warn(" 找不到對應贊助資料：", CustomField1);
+      return res.send("0|NOT_FOUND");
+    }
 
+    if (parseInt(RtnCode) !== 1) {
+      console.warn(" 綠界回傳失敗：RtnCode =", RtnCode);
+      return res.send("0|FAIL");
+    }
+
+    if (order.status === "paid") {
+      console.log(" 該筆訂單已付款，略過");
+      return res.send("1|OK");
+    }
+
+    if (parseInt(TradeAmt) !== Math.round(order.amount)) {
+      console.warn(" 金額不符：", TradeAmt, "vs", order.amount);
+      return res.send("0|AMOUNT_MISMATCH");
+    }
+
+    //  更新訂單資料
     order.status = "paid";
     order.paid_at = new Date(PaymentDate.replace(" ", "T") || Date.now());
-    order.payment_method = PaymentType;
+    order.payment_method = PaymentType || "ECPAY";
     order.transaction_id = MerchantTradeNo;
-    await repo.save(order);
 
-    // 累加至對應專案金額
+    await repo.save(order);
+    console.log(" 已更新 sponsorship 成功，ID:", order.id);
+
+    //  專案金額累加
     const projectRepo = dataSource.getRepository("Projects");
     const project = await projectRepo.findOneBy({ id: order.project.id });
     if (project) {
       project.amount += order.amount;
       await projectRepo.save(project);
+      console.log(" 專案金額已累加");
     }
 
-    //  寄送信件與發票
+    //  寄送信件（若非捐贈）
     const invoiceType = order.invoice?.type?.name;
     await Promise.allSettled([
       sendSponsorSuccessEmail(order),
@@ -159,7 +182,7 @@ async function handleEcpayCallback(req, res) {
 
     return res.send("1|OK");
   } catch (err) {
-    console.error("綠界付款完成通知錯誤：", err);
+    console.error("❌ 綠界付款完成通知錯誤：", err);
     return res.send("0|SERVER_ERROR");
   }
 }
