@@ -23,6 +23,7 @@ async function getAllUsers(req, res, next){
 
         const userRepo = dataSource.getRepository("Users");
         const [users, total] = await userRepo.findAndCount({
+            where: { status: 1 }
             skip: (currentPage -1) *pageSize,
             take: pageSize,
             order: { created_at: "ASC"},
@@ -140,10 +141,13 @@ async function patchProposerStatus(req, res, next){
                 year: "numeric",
                 month: "2-digit",
                 day: "2-digit",
-              });
+              })
 
             const user = await userRepo.findOneBy({ id: user_id });
-            if (!user || !user.account) continue;
+            if (!user || !user.account) {
+                console.warn(`找不到帳號 user_id=${user_id}，跳過寄信`);
+                continue;
+            }
 
             // email通知
             let subject = '申請成為提案者──審核結果通知';
@@ -269,9 +273,9 @@ async function patchProjectStatus(req, res, next){
             let subject = '提案審核結果通知';
             let message = '';
             if (status === 2){
-                message = `您好，有關貴單位於${project.created_at}提案一事，已通過審核。\n\n歡迎登入平台讓改變開始，讓夢想成真。`;
+                message = `您好，有關貴單位於${project.created_at}之「${project.title}」，已通過審核。\n\n感謝您願意與我們一起讓改變開始，讓夢想成真。`;
             } else if (status ===3){
-                message = `您好，有關貴單位於${project.created_at}提案一事，未通過審核。\n\n未通過原因：${ reason || "未提供原因"}`;
+                message = `您好，有關貴單位於${project.created_at}之「${project.title}」，經審未通過。\n\n未通過原因：${ reason || "未提供原因"}`;
             }
             await sendEmail({
                 to: project.user.account,
