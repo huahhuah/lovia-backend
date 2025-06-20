@@ -730,6 +730,44 @@ async function me(req, res, next) {
   }
 }
 
+// 取得贊助結果詳細資訊
+async function getSponsorshipResult(req, res, next) {
+  const { order_uuid } = req.params;
+  const userId = req.user?.id;
+
+  try {
+    const sponsorshipRepo = dataSource.getRepository("Sponsorships");
+    const sponsorship = await sponsorshipRepo.findOne({
+      where: {
+        order_uuid,
+        user: { id: userId }
+      },
+      relations: ["user", "shipping", "invoice", "project", "plan"]
+    });
+
+    if (!sponsorship) return next(appError(404, "找不到對應的贊助紀錄"));
+
+    return res.status(200).json({
+      status: true,
+      data: {
+        order_uuid: sponsorship.order_uuid,
+        amount: sponsorship.amount,
+        paid_at: sponsorship.paid_at,
+        payment_method: sponsorship.payment_method,
+        status: sponsorship.status,
+        display_name: sponsorship.display_name,
+        email: sponsorship.user.email,
+        note: sponsorship.note,
+        shipping: sponsorship.shipping || {},
+        invoice: sponsorship.invoice || {}
+      }
+    });
+  } catch (err) {
+    console.error("查詢贊助結果失敗:", err);
+    return next(appError(500, "查詢失敗"));
+  }
+}
+
 module.exports = {
   postSignup,
   postLogin,
@@ -742,5 +780,6 @@ module.exports = {
   postApplication,
   toggleFollowStatus,
   getFollowStatus,
-  me
+  me,
+  getSponsorshipResult
 };
