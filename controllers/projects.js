@@ -346,7 +346,8 @@ async function getAllProjects(req, res, next) {
         "category.id",
         "category.name",
         "category.image"
-      ]);
+      ])
+      .andWhere("project.status = :approvedStatus", {approvedStatus: 2});
 
     // 篩選條件
     if (categoryId) {
