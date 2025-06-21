@@ -92,7 +92,10 @@ module.exports = new EntitySchema({
     plan: {
       type: "many-to-one",
       target: "ProjectPlans",
-      joinColumn: { name: "plan_id" },
+      joinColumn: {
+        name: "plan_id",
+        referencedColumnName: "plan_id"
+      },
       eager: true
     },
 
