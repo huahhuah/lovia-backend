@@ -27,7 +27,8 @@ async function createProject(req, res, next) {
       cover,
       full_content,
       project_team,
-      faq
+      faq,
+      status
     } = req.body;
 
     const missingFields = checkMissingProjectFields(req.body);
@@ -76,7 +77,8 @@ async function createProject(req, res, next) {
       faq,
       user,
       project_type,
-      is_finished: false
+      is_finished: false,
+      status: 1
     });
 
     const savedProject = await projectRepo.save(newProject);
