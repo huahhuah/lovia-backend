@@ -8,7 +8,7 @@ const { validateInvoice } = require("../utils/validateInvoice");
 const { v4: uuidv4 } = require("uuid");
 const { In } = require("typeorm");
 const Project = require("../entities/Projects");
-const ProjectComments = require('../entities/Project_comments');
+const ProjectComments = require("../entities/Project_comments");
 
 //  步驟一：建立專案
 async function createProject(req, res, next) {
@@ -347,7 +347,7 @@ async function getAllProjects(req, res, next) {
         "category.name",
         "category.image"
       ])
-      .andWhere("project.status = :approvedStatus", {approvedStatus: 2});
+      .andWhere("project.status = :approvedStatus", { approvedStatus: 2 });
 
     // 篩選條件
     if (categoryId) {
@@ -485,6 +485,14 @@ async function getProjectOverview(req, res, next) {
   if (isNaN(projectId) || projectId < 1) {
     return next(appError(400, "無效的查詢參數"));
   }
+  function getProjectType(project) {
+    const now = new Date();
+    const end = new Date(project.end_time);
+
+    if (end < now) return "歷年專案";
+    if (project?.projectStatus?.status === "長期贊助") return "長期贊助";
+    return "募資中";
+  }
 
   try {
     const projectRepo = dataSource.getRepository("Projects");
@@ -499,6 +507,9 @@ async function getProjectOverview(req, res, next) {
     if (!project) {
       return next(appError(404, "找不到該專案"));
     }
+
+    //  動態計算 project_type
+    project.project_type = getProjectType(project);
 
     //類別圖示
     const categoryName = project.category?.name || "";
@@ -540,11 +551,12 @@ async function getProjectOverview(req, res, next) {
         supporters,
         cover: project.cover,
         full_content: project.full_content,
-        project_team: project.project_team
+        project_team: project.project_team,
+        project_type: project.project_type
       }
     });
   } catch (err) {
-    console.error("❌ 捕捉到錯誤:", err);
+    console.error(" 捕捉到錯誤:", err);
     logger.error("查詢提案概覽失敗", {
       message: err.message,
       stack: err.stack,
@@ -1147,22 +1159,22 @@ async function getMyAllQuestions(req, res, next) {
         user: { id: userId }
       },
       order: {
-        created_at: 'DESC'
+        created_at: "DESC"
       },
-      relations: ['project']
+      relations: ["project"]
     });
 
     res.status(200).json({
       status: true,
-      message: '取得我全部提問成功',
+      message: "取得我全部提問成功",
       data: myQuestions
     });
   } catch (error) {
-    console.error('取得全部提問失敗', error);
+    console.error("取得全部提問失敗", error);
     res.status(500).json({
       status: false,
-      message: '取得全部提問發生錯誤',
-      error: error.message,  // 把錯誤訊息回傳給前端，方便偵錯
+      message: "取得全部提問發生錯誤",
+      error: error.message // 把錯誤訊息回傳給前端，方便偵錯
     });
   }
 }
@@ -1177,14 +1189,14 @@ async function getMyProjectsQuestions(req, res, next) {
     // 1. 找出該用戶的所有專案 id
     const myProjects = await projectRepo.find({
       where: { user: { id: userId } },
-      select: ['id']
+      select: ["id"]
     });
     const myProjectIds = myProjects.map(p => p.id);
 
     if (myProjectIds.length === 0) {
       return res.status(200).json({
         status: true,
-        message: '你目前沒有任何專案',
+        message: "你目前沒有任何專案",
         data: []
       });
     }
@@ -1194,21 +1206,21 @@ async function getMyProjectsQuestions(req, res, next) {
       where: {
         project: { id: In(myProjectIds) } // In 是 TypeORM 的查詢條件
       },
-      order: { created_at: 'DESC' },
-      relations: ['user', 'project']
+      order: { created_at: "DESC" },
+      relations: ["user", "project"]
     });
 
     res.status(200).json({
       status: true,
-      message: '取得提案者全部提案的提問總覽成功',
+      message: "取得提案者全部提案的提問總覽成功",
       data: questions
     });
   } catch (error) {
-    console.error('取得提案者提問總覽失敗', error);
+    console.error("取得提案者提問總覽失敗", error);
     res.status(500).json({
       status: false,
-      message: '取得提問總覽發生錯誤',
-      error: error.message,
+      message: "取得提問總覽發生錯誤",
+      error: error.message
     });
   }
 }

@@ -76,34 +76,59 @@ async function createEcpayPayment(req, res) {
   }
 }
 
-//AMT
+// 綠界 ATM 虛擬帳號通知
 async function handleEcpayATMInfo(req, res) {
   try {
-    const { MerchantTradeNo, PaymentNo, BankCode, ExpireDate, CustomField1 } = req.body;
+    const {
+      MerchantTradeNo,
+      PaymentNo,
+      BankCode,
+      ExpireDate,
+      TradeAmt,
+      CustomField1 // order_uuid
+    } = req.body;
+
+    console.log(" 綠界 ATM 虛擬帳號通知：", req.body);
+
+    // 確保必要欄位存在
     if (!MerchantTradeNo || !CustomField1 || !PaymentNo || !BankCode || !ExpireDate) {
-      console.warn(" ATM 通知缺少參數：", { order_uuid: CustomField1, body: req.body });
+      console.warn(" ATM 通知缺少參數：", req.body);
       return res.send("0|MISSING_PARAMS");
     }
 
-    const repo = dataSource.getRepository(Sponsorships);
+    const repo = dataSource.getRepository("Sponsorships");
     const order = await repo.findOneBy({ order_uuid: CustomField1 });
-    if (!order) return res.send("0|NOT_FOUND");
 
-    if (order.payment_status === "paid") return res.send("1|ALREADY_PAID");
+    if (!order) {
+      console.warn(" 找不到對應訂單：", CustomField1);
+      return res.send("0|NOT_FOUND");
+    }
 
+    if (order.status === "paid") {
+      console.log(" 該訂單已付款，略過 ATM 虛擬帳號通知");
+      return res.send("1|ALREADY_PAID");
+    }
+
+    // 可選：比對金額
+    if (TradeAmt && parseInt(TradeAmt) !== Math.round(order.amount)) {
+      console.warn(" ATM 金額不符：", TradeAmt, "vs", order.amount);
+      return res.send("0|AMOUNT_MISMATCH");
+    }
+
+    // 寫入 ATM 虛擬帳號資訊
     order.payment_method = "ATM";
-    order.payment_status = "pending";
-    order.atm_info = {
-      bank_code: BankCode,
-      payment_no: PaymentNo,
-      expire_date: ExpireDate
-    };
+    order.status = "pending";
+    order.transaction_id = MerchantTradeNo;
+    order.atm_bank_code = BankCode;
+    order.atm_payment_no = PaymentNo;
+    order.atm_expire_date = new Date(`${ExpireDate.replace(/\//g, "-")}T23:59:59+08:00`);
     order.payment_result = JSON.stringify(req.body);
 
     await repo.save(order);
+    console.log(" ATM 虛擬帳號資訊已成功寫入");
     return res.send("1|OK");
   } catch (err) {
-    console.error(" ATM 通知處理錯誤：", err);
+    console.error(" ATM 虛擬帳號處理錯誤：", err);
     return res.send("0|SERVER_ERROR");
   }
 }
@@ -111,6 +136,16 @@ async function handleEcpayATMInfo(req, res) {
 //綠界callback
 async function handleEcpayCallback(req, res) {
   try {
+    const { CheckMacValue, ...data } = req.body;
+    console.log(" [ECPay Callback] 收到資料：", req.body);
+
+    // [1] 驗證 CheckMacValue
+    const localCMV = createCheckMacValue(data, true);
+    if (CheckMacValue !== localCMV) {
+      console.warn(" CheckMacValue 驗證失敗");
+      return res.send("0|CHECKMAC_ERROR");
+    }
+
     const {
       MerchantTradeNo,
       RtnCode,
@@ -118,79 +153,81 @@ async function handleEcpayCallback(req, res) {
       TradeAmt,
       PaymentType,
       CustomField1 // order_uuid
-    } = req.body;
-
-    console.log(" 綠界 callback 收到資料：", req.body);
+    } = data;
 
     if (!MerchantTradeNo || !CustomField1) {
-      console.warn(" 缺少必要欄位 MerchantTradeNo 或 CustomField1");
-      return res.send("0|ERROR");
+      console.warn(" 缺少 MerchantTradeNo 或 CustomField1");
+      return res.send("0|MISSING_PARAMS");
     }
 
-    const repo = dataSource.getRepository(Sponsorships);
-
+    // [2] 查找訂單
+    const repo = dataSource.getRepository("Sponsorships");
     const order = await repo.findOne({
       where: { order_uuid: CustomField1 },
       relations: ["user", "invoice", "invoice.type", "project"]
     });
 
     if (!order) {
-      console.warn(" 找不到對應贊助資料：", CustomField1);
+      console.warn(" 找不到對應訂單：", CustomField1);
       return res.send("0|NOT_FOUND");
     }
 
+    // [3] 驗證是否付款成功
     if (parseInt(RtnCode) !== 1) {
-      console.warn(" 綠界回傳失敗：RtnCode =", RtnCode);
+      console.warn(" 綠界回傳交易失敗：RtnCode =", RtnCode);
       return res.send("0|FAIL");
     }
 
+    // [4] 若已付款則略過
     if (order.status === "paid") {
-      console.log(" 該筆訂單已付款，略過");
+      console.log(" 該訂單已標示為已付款，略過");
       return res.send("1|OK");
     }
 
+    // [5] 驗證金額一致
     if (parseInt(TradeAmt) !== Math.round(order.amount)) {
-      console.warn(" 金額不符：", TradeAmt, "vs", order.amount);
+      console.warn(` 金額不符：回傳=${TradeAmt}，預期=${order.amount}`);
       return res.send("0|AMOUNT_MISMATCH");
     }
 
-    // 解析付款時間（處理綠界格式錯誤）
-    const paidAtRaw = PaymentDate?.replace(" ", "T");
-    const paidAt = new Date(paidAtRaw);
-    order.paid_at = isNaN(paidAt.getTime()) ? new Date() : paidAt;
-    console.log(" 付款時間解析結果：", order.paid_at.toISOString());
-
-    //  更新訂單資料
+    // [6] 更新訂單為已付款
+    order.paid_at = dayjs(PaymentDate, "YYYY/MM/DD HH:mm:ss").toDate();
     order.status = "paid";
     order.payment_method = PaymentType || "ECPAY";
     order.transaction_id = MerchantTradeNo;
 
     await repo.save(order);
-    console.log(" 已更新 sponsorship 成功，ID:", order.id);
+    console.log(" 已更新訂單狀態為 paid");
 
-    //  專案金額累加
-    const projectRepo = dataSource.getRepository("Projects");
-    const project = await projectRepo.findOneBy({ id: order.project.id });
-
-    if (project) {
-      project.amount += order.amount;
-      await projectRepo.save(project);
-      console.log(" 專案金額已累加");
+    // [7] 專案金額累加
+    try {
+      const projectRepo = dataSource.getRepository("Projects");
+      const project = await projectRepo.findOneBy({ id: order.project.id });
+      if (project) {
+        project.amount += order.amount;
+        await projectRepo.save(project);
+        console.log(" 已累加專案贊助金額");
+      }
+    } catch (err) {
+      console.error(" 累加專案金額失敗：", err);
     }
 
-    //  寄送信件（若非捐贈）
-    const invoiceType = order.invoice?.type?.name;
-
-    await Promise.allSettled([
-      sendSponsorSuccessEmail(order),
-      invoiceType && invoiceType !== "donate"
-        ? sendInvoiceEmail(order, order.invoice)
-        : Promise.resolve()
-    ]);
+    // [8] 寄送信件通知
+    try {
+      const invoiceType = order.invoice?.type?.name;
+      await Promise.allSettled([
+        sendSponsorSuccessEmail(order),
+        invoiceType && invoiceType !== "donate"
+          ? sendInvoiceEmail(order, order.invoice)
+          : Promise.resolve()
+      ]);
+    } catch (emailErr) {
+      console.error(" 寄送信件失敗：", emailErr);
+    }
 
     return res.send("1|OK");
   } catch (err) {
-    console.error(" 綠界付款完成通知錯誤：", err);
+    console.error(" 綠界 callback 錯誤：", err);
     return res.send("0|SERVER_ERROR");
   }
 }
