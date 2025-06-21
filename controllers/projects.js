@@ -74,7 +74,8 @@ async function createProject(req, res, next) {
       faq,
       user,
       project_type,
-      is_finished: false
+      is_finished: false,
+      projectStatus: { id: 1 }
     });
 
     const savedProject = await projectRepo.save(newProject);
@@ -681,15 +682,12 @@ async function sponsorProjectPlan(req, res, next) {
     const { sponsorship = {} } = req.body;
     const { display_name, note, amount } = sponsorship;
 
-    // 檢查登入狀態
     if (!req.user || !req.user.id) {
-      console.warn(" 無法取得登入使用者資料 (req.user)");
+      console.warn(" sponsorProjectPlan：無法取得登入使用者資料");
       return next(appError(401, "請先登入"));
     }
 
     const userId = req.user.id;
-
-    // 整數轉換與驗證
     const pid = parseInt(project_id, 10);
     const planId = parseInt(plan_id, 10);
     const amt = Number(amount);
@@ -702,72 +700,38 @@ async function sponsorProjectPlan(req, res, next) {
       return next(appError(400, "贊助金額必須為正整數"));
     }
 
-    // 取得資料表
-    const projectRepo = dataSource.getRepository("Projects");
-    const planRepo = dataSource.getRepository("ProjectPlans");
-    const sponsorRepo = dataSource.getRepository("Sponsorships");
+    const planRepo = dataSource.getRepository(ProjectPlans);
+    const plan = await planRepo.findOneBy({ plan_id: planId, project_id: pid });
 
-    // 尋找專案與方案
-    const project = await projectRepo.findOneBy({ id: pid });
-    if (!project) return next(appError(404, "找不到該專案"));
-    if (project.project_type === "歷年專案") {
-      return next(appError(403, "歷年專案無法再進行贊助"));
+    if (!plan) {
+      return next(appError(404, "找不到對應的贊助方案"));
     }
 
-    const plan = await planRepo.findOneBy({ plan_id: planId });
-    if (!plan) return next(appError(404, "找不到回饋方案"));
-
-    //  Log 即將儲存的資料
-    console.log(" 建立贊助紀錄：", {
-      user_id: userId,
-      project_id: pid,
-      plan_id: planId,
-      amount: amt,
-      display_name,
-      note
-    });
-
-    // 建立實體
+    const sponsorRepo = dataSource.getRepository(Sponsorships);
     const newSponsorship = sponsorRepo.create({
       user: { id: userId },
       project: { id: pid },
-      plan, // TypeORM 識別的是物件
-      quantity: 1,
-      amount: amt,
+      plan: { plan_id: planId },
       display_name: display_name?.trim() || "匿名",
       note: note?.trim() || "",
-      status: "pending"
+      amount: amt,
+      quantity: 1,
+      order_uuid: uuidv4(),
+      status: "未付款"
     });
 
     const saved = await sponsorRepo.save(newSponsorship);
-    console.log(" 贊助成功，ID:", saved.id);
 
-    res.status(200).json({
+    res.status(201).json({
       status: true,
-      message: "贊助成功",
-      data: saved
+      message: "贊助已建立",
+      order_uuid: saved.order_uuid
     });
-  } catch (error) {
-    console.error(" 贊助失敗");
-    console.error(" error.message:", error?.message || error);
-    console.error(" error.stack:", error?.stack || "無堆疊資訊");
-    if (error?.detail) console.error(" PostgreSQL Detail:", error.detail);
-    if (error?.query) console.error(" SQL Query:", error.query);
-    if (error?.parameters) console.error(" Params:", error.parameters);
-
-    return res.status(500).json({
-      status: false,
-      message: "伺服器錯誤",
-      debug: {
-        message: error?.message || null,
-        detail: error?.detail || null,
-        query: error?.query || null,
-        parameters: error?.parameters || null
-      }
-    });
+  } catch (err) {
+    console.error("🔥 後端錯誤訊息：", err);
+    next(appError(500, "伺服器錯誤", err));
   }
 }
-
 // 建立完整訂單資訊：含贊助、發票、寄送資料
 async function createProjectSponsorship(req, res, next) {
   const { project_id, plan_id } = req.params;
