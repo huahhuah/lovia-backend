@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createPaymentRequest, getPaymentSuccessInfo } = require("../controllers/orders");
+const { createPaymentRequest, getPaymentSuccessInfo, getMySponsorships} = require("../controllers/orders");
 const auth = require("../middlewares/auth");
 
 const { dataSource } = require("../db/data-source");
@@ -18,6 +18,12 @@ router.get(
   "/:order_id/payment/success",
   auth({ secret: jwtSecret, userRepository }),
   getPaymentSuccessInfo
+);
+
+router.get(
+  "/mine",
+  auth({ secret: jwtSecret, userRepository }),
+  getMySponsorships
 );
 
 module.exports = router;

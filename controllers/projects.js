@@ -7,6 +7,8 @@ const jwt = require("jsonwebtoken");
 const { validateInvoice } = require("../utils/validateInvoice");
 const { v4: uuidv4 } = require("uuid");
 const { In } = require("typeorm");
+const Project = require("../entities/Projects");
+const ProjectComments = require('../entities/Project_comments');
 
 //  步驟一：建立專案
 async function createProject(req, res, next) {
@@ -25,7 +27,8 @@ async function createProject(req, res, next) {
       cover,
       full_content,
       project_team,
-      faq
+      faq,
+      status
     } = req.body;
 
     const missingFields = checkMissingProjectFields(req.body);
@@ -76,6 +79,7 @@ async function createProject(req, res, next) {
       project_type,
       is_finished: false,
       projectStatus: { id: 1 }
+
     });
 
     const savedProject = await projectRepo.save(newProject);
@@ -343,7 +347,8 @@ async function getAllProjects(req, res, next) {
         "category.id",
         "category.name",
         "category.image"
-      ]);
+      ])
+      .andWhere("project.status = :approvedStatus", {approvedStatus: 2});
 
     // 篩選條件
     if (categoryId) {
@@ -1095,6 +1100,83 @@ async function deleteProject(req, res, next) {
   }
 }
 
+async function getMyAllQuestions(req, res, next) {
+  try {
+    const userId = req.user.id;
+
+    const commentRepo = dataSource.getRepository(ProjectComments);
+
+    const myQuestions = await commentRepo.find({
+      where: {
+        user: { id: userId }
+      },
+      order: {
+        created_at: 'DESC'
+      },
+      relations: ['project']
+    });
+
+    res.status(200).json({
+      status: true,
+      message: '取得我全部提問成功',
+      data: myQuestions
+    });
+  } catch (error) {
+    console.error('取得全部提問失敗', error);
+    res.status(500).json({
+      status: false,
+      message: '取得全部提問發生錯誤',
+      error: error.message,  // 把錯誤訊息回傳給前端，方便偵錯
+    });
+  }
+}
+
+async function getMyProjectsQuestions(req, res, next) {
+  try {
+    const userId = req.user.id;
+
+    const projectRepo = dataSource.getRepository(Project);
+    const commentRepo = dataSource.getRepository(ProjectComments);
+
+    // 1. 找出該用戶的所有專案 id
+    const myProjects = await projectRepo.find({
+      where: { user: { id: userId } },
+      select: ['id']
+    });
+    const myProjectIds = myProjects.map(p => p.id);
+
+    if (myProjectIds.length === 0) {
+      return res.status(200).json({
+        status: true,
+        message: '你目前沒有任何專案',
+        data: []
+      });
+    }
+
+    // 2. 找出這些專案底下的所有提問
+    const questions = await commentRepo.find({
+      where: {
+        project: { id: In(myProjectIds) } // In 是 TypeORM 的查詢條件
+      },
+      order: { created_at: 'DESC' },
+      relations: ['user', 'project']
+    });
+
+    res.status(200).json({
+      status: true,
+      message: '取得提案者全部提案的提問總覽成功',
+      data: questions
+    });
+  } catch (error) {
+    console.error('取得提案者提問總覽失敗', error);
+    res.status(500).json({
+      status: false,
+      message: '取得提問總覽發生錯誤',
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   createProject,
   createProjectPlan,
@@ -1111,5 +1193,7 @@ module.exports = {
   getProjectFaq,
   getProjectComment,
   getMyProjects,
-  deleteProject
+  deleteProject,
+  getMyAllQuestions,
+  getMyProjectsQuestions
 };

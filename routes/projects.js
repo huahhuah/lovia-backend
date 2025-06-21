@@ -11,7 +11,8 @@ const auth = require("../middlewares/auth")({
   userRepository: dataSource.getRepository("Users"),
   logger
 });
-
+router.get('/my-questions', auth, projects.getMyAllQuestions);
+router.get('/my-projects/questions', auth, projects.getMyProjectsQuestions);
 router.get("/", projects.getAllProjects);
 router.get("/my-projects", auth, projects.getMyProjects);
 router.get("/categories", projects.getAllCategories);
