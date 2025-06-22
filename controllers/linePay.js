@@ -90,8 +90,6 @@ async function handleLinePayRequest(req, res, next) {
 }
 
 // [2] LINE Pay 付款完成導回 → 後端確認付款
-const jwt = require("jsonwebtoken"); // 確保已匯入
-
 async function handleLinePayConfirm(req, res, next) {
   try {
     const { transactionId, orderId } = req.query;
@@ -99,25 +97,19 @@ async function handleLinePayConfirm(req, res, next) {
 
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
 
+    // 查詢 sponsorship（含 eager 關聯 invoice, shipping）
     const sponsorship = await sponsorshipRepo.findOne({
-      where: { order_uuid: orderId },
-      relations: ["user", "invoice", "invoice.type", "project"]
+      where: { order_uuid: orderId }
     });
 
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
+    // 若已付款不重複更新，直接導回結果頁
     if (sponsorship.status === "paid" && sponsorship.transaction_id === transactionId) {
-      console.info("訂單已付款，跳過更新");
-
-      // 產生新的 JWT token（若 userStore 已遺失）
-      const token = jwt.sign({ id: sponsorship.user.id }, process.env.JWT_SECRET, {
-        expiresIn: "7d"
-      });
-
-      return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
+      return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}`);
     }
 
-    // 發送 Confirm API 給 LINE Pay
+    // 發送 LINE Pay Confirm API 請求
     const uri = `/v3/payments/${transactionId}/confirm`;
     const nonce = uuidv4();
     const confirmBody = { amount: sponsorship.amount, currency: CURRENCY };
@@ -132,51 +124,44 @@ async function handleLinePayConfirm(req, res, next) {
       }
     });
 
-    // 更新付款資訊
+    // 更新 sponsorship 資料
     sponsorship.status = "paid";
-    sponsorship.payment_status = "paid";
     sponsorship.paid_at = new Date();
     sponsorship.transaction_id = transactionId;
-    sponsorship.payment_method = "LINE Pay";
+    sponsorship.payment_method = "LINE_PAY";
     sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     await sponsorshipRepo.save(sponsorship);
-    console.log(" 訂單狀態已更新為已付款");
 
-    // 更新專案金額
+    // 更新 project 募資總金額
+    const projectRepo = dataSource.getRepository("Projects");
+    const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
+    if (project) {
+      project.amount += sponsorship.amount;
+      await projectRepo.save(project);
+    }
+
+    //  寄出贊助成功通知信
     try {
-      const projectRepo = dataSource.getRepository("Projects");
-      const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
-      if (project) {
-        project.amount += sponsorship.amount;
-        await projectRepo.save(project);
-        console.log(" 專案金額已更新");
+      await sendSponsorSuccessEmail(sponsorship);
+    } catch (err) {
+      console.error("寄送成功信失敗:", err.message);
+    }
+
+    //  寄送發票信（用 sponsorship.invoice，不要自己查）
+    if (sponsorship.invoice) {
+      try {
+        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+      } catch (err) {
+        console.error("寄送發票信失敗:", err.message);
       }
-    } catch (err) {
-      console.error(" 更新專案金額失敗：", err);
+    } else {
+      console.warn(" 尚未建立 invoice，無法寄送發票信");
     }
 
-    // 寄送通知信 + 發票（非捐贈）
-    try {
-      const invoiceType = sponsorship.invoice?.type?.name || sponsorship.invoice?.type;
-      await Promise.allSettled([
-        sendSponsorSuccessEmail(sponsorship),
-        invoiceType && invoiceType !== "donate"
-          ? sendInvoiceEmail(sponsorship, sponsorship.invoice)
-          : Promise.resolve()
-      ]);
-      console.log(" 通知信與發票處理完成");
-    } catch (err) {
-      console.error(" 通知寄送失敗：", err.message);
-    }
-
-    // 產生 token 並帶入導回網址
-    const token = jwt.sign({ id: sponsorship.user.id }, process.env.JWT_SECRET, {
-      expiresIn: "7d"
-    });
-
-    return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=Bearer%20${token}`);
+    // 導回結果頁
+    return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}`);
   } catch (err) {
-    console.error("LINE Pay Confirm 錯誤：", err?.response?.data || err.message);
+    console.error("LINE Pay Confirm 發生錯誤:", err?.response?.data || err.message);
     return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
   }
 }
