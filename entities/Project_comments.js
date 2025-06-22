@@ -16,6 +16,16 @@ module.exports = new EntitySchema({
     created_at: {
       type: "timestamp",
       createDate: true
+    },
+    // ✅ 新增欄位：回覆內容
+    reply_content: {
+      type: "text",
+      nullable: true
+    },
+    // ✅ 新增欄位：回覆時間
+    reply_at: {
+      type: "timestamp",
+      nullable: true
     }
   },
   relations: {
