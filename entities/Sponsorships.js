@@ -60,6 +60,20 @@ module.exports = new EntitySchema({
     payment_result: {
       type: "text",
       nullable: true
+    },
+    atm_bank_code: {
+      type: "varchar",
+      length: 10,
+      nullable: true
+    },
+    atm_payment_no: {
+      type: "varchar",
+      length: 30,
+      nullable: true
+    },
+    atm_expire_date: {
+      type: "timestamp",
+      nullable: true
     }
   },
   relations: {

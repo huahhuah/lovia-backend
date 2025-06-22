@@ -112,7 +112,7 @@ module.exports = new EntitySchema({
     projectStatus: {
       type: "many-to-one",
       target: "ProjectStatuses",
-      joinColumn: { name: "status"},  
+      joinColumn: { name: "status" },
       inverseSide: "projects"
     }
   }
