@@ -362,6 +362,34 @@ async function updateProjectPlan(req, res) {
   }
 }
 
+async function deleteProjectPlan(req, res) {
+  const projectId = parseInt(req.params.project_id, 10);
+  const planId = parseInt(req.params.planId, 10);
+
+  try {
+    const planRepository = dataSource.getRepository("ProjectPlans");
+
+    // 確認該方案是否存在，且屬於該 project
+    const plan = await planRepository.findOne({
+      where: {
+        plan_id: planId,
+        project_id: projectId
+      }
+    });
+
+    if (!plan) {
+      return res.status(404).json({ message: "該方案不存在或不屬於該專案" });
+    }
+
+    await planRepository.remove(plan);
+
+    return res.json({ message: "方案已刪除成功" });
+  } catch (error) {
+    logger.error("刪除方案失敗：", error);
+    return res.status(500).json({ message: "刪除方案時發生錯誤" });
+  }
+}
+
 // 查詢所有專案（探索用：支援 filter、分類、分頁、排序、格式化）
 async function getAllProjects(req, res, next) {
   try {
@@ -1375,6 +1403,7 @@ module.exports = {
   getProject,
   updateProject,
   updateProjectPlan,
+  deleteProjectPlan,
   getAllProjects,
   getAllCategories,
   getProjectOverview,

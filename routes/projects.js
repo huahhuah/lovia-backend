@@ -28,6 +28,7 @@ router.get("/:project_id/faq", projects.getProjectFaq);
 router.get("/:project_id/comments", projects.getProjectComment);
 router.put("/:id", auth, projects.updateProject);
 router.put("/:project_id/plans/:planId", auth, projects.updateProjectPlan);
+router.delete("/:project_id/plans/:planId", auth, projects.deleteProjectPlan);
 router.delete("/:id", auth, projects.deleteProject);
 router.post("/comments/:id/reply", auth, projects.replyToProjectComment);
 
