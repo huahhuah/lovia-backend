@@ -55,7 +55,7 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
 app.use("/api/v1/admins", adminsRouter);
-app.use("/api/v1/orders", ordersRouter);
+app.use("/api/v1/users/orders", ordersRouter);
 app.use("/api/v1/webhooks", webhookRouter);
 app.use("/api/v1/linepay", linePayRoutes);
 app.use("/api/v1", emailRoutes);
