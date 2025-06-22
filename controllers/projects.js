@@ -1177,7 +1177,9 @@ async function getMyAllQuestions(req, res, next) {
             id: q.project.id,
             title: q.project.title
           }
-        : null
+        : null,
+        reply_content: q.reply_content ?? null, // 加上回覆內容
+  reply_at: q.reply_at ? q.reply_at.toISOString() : null // 加上回覆時間
     }));
 
     res.status(200).json({
