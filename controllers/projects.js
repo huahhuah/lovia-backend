@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require("uuid");
 const { In } = require("typeorm");
 const Project = require("../entities/Projects");
 const ProjectComments = require("../entities/Project_comments");
+const { Not, IsNull } = require("typeorm");
 
 //  步驟一：建立專案
 async function createProject(req, res, next) {
@@ -968,7 +969,7 @@ async function getMyProjects(req, res, next) {
     const projects = await projectRepo.find({
       where: { user: { id: userId } },
       order: { id: "DESC" },
-      relations: ["projectPlans"]
+      relations: ["projectPlans", "projectStatus"]
     });
 
     const result = [];
@@ -990,8 +991,9 @@ async function getMyProjects(req, res, next) {
         title: p.title,
         targetAmount: p.total_amount,
         supportAmount: parseInt(supportTotal?.total || 0),
-        status: p.project_type || "未設定", // ← 加這行
-        rewardItem: p.projectPlans?.[0]?.feedback || "-", // ✅ 改這行
+        project_type: p.project_type || "未設定",
+        auditStatus: p.projectStatus?.status || "無", // 這裡改成 status 欄位
+        rewardItem: p.projectPlans?.[0]?.feedback || "-",
         shippingInfo: !!hasShipping
       });
     }
@@ -1014,17 +1016,20 @@ async function getProjectComment(req, res, next) {
     if (!project_id) {
       return next(appError(400, "請求錯誤"));
     }
+
     const commentRepo = dataSource.getRepository("ProjectComments");
     const comments = await commentRepo.find({
       where: { project: { id: project_id } },
       order: { created_at: "DESC" },
       relations: ["project", "user"]
     });
-    // 擷取需要的回傳
+
     const usefulData = comments.map(comment => ({
       comment_id: comment.comment_id,
       content: comment.content,
       created_at: comment.created_at.toISOString(),
+      reply_content: comment.reply_content || null,
+      reply_at: comment.reply_at ? comment.reply_at.toISOString() : null,
       project: { id: comment.project.id },
       user: {
         id: comment.user.id,
@@ -1156,25 +1161,36 @@ async function getMyAllQuestions(req, res, next) {
 
     const myQuestions = await commentRepo.find({
       where: {
-        user: { id: userId }
+        user: { id: userId },
+        project: Not(IsNull()) // ✅ 這一行是關鍵：排除已被刪除的專案留言
       },
-      order: {
-        created_at: "DESC"
-      },
+      order: { created_at: "DESC" },
       relations: ["project"]
     });
+
+    const result = myQuestions.map(q => ({
+      comment_id: q.comment_id,
+      content: q.content,
+      created_at: q.created_at.toISOString(),
+      project: q.project
+        ? {
+            id: q.project.id,
+            title: q.project.title
+          }
+        : null
+    }));
 
     res.status(200).json({
       status: true,
       message: "取得我全部提問成功",
-      data: myQuestions
+      data: result
     });
   } catch (error) {
     console.error("取得全部提問失敗", error);
     res.status(500).json({
       status: false,
       message: "取得全部提問發生錯誤",
-      error: error.message // 把錯誤訊息回傳給前端，方便偵錯
+      error: error.message
     });
   }
 }
@@ -1186,10 +1202,10 @@ async function getMyProjectsQuestions(req, res, next) {
     const projectRepo = dataSource.getRepository(Project);
     const commentRepo = dataSource.getRepository(ProjectComments);
 
-    // 1. 找出該用戶的所有專案 id
+    // 1. 取出該使用者的專案 id
     const myProjects = await projectRepo.find({
       where: { user: { id: userId } },
-      select: ["id"]
+      select: ["id", "title"] // 這裡也選title，方便回傳
     });
     const myProjectIds = myProjects.map(p => p.id);
 
@@ -1201,25 +1217,96 @@ async function getMyProjectsQuestions(req, res, next) {
       });
     }
 
-    // 2. 找出這些專案底下的所有提問
+    // 2. 取得這些專案的提問（留言）
     const questions = await commentRepo.find({
-      where: {
-        project: { id: In(myProjectIds) } // In 是 TypeORM 的查詢條件
-      },
+      where: { project: { id: In(myProjectIds) } },
       order: { created_at: "DESC" },
       relations: ["user", "project"]
     });
 
+    // 3. 篩選必要欄位回傳，包括回覆
+    const result = questions.map(q => ({
+      comment_id: q.comment_id,
+      content: q.content,
+      created_at: q.created_at.toISOString(),
+      project: {
+        id: q.project.id,
+        title: q.project.title
+      },
+      user: {
+        id: q.user?.id,
+        name: q.user?.username || q.user?.email || "匿名",
+        avatar_url: q.user?.avatar_url || null
+      },
+      reply_content: q.reply_content || null,
+      reply_at: q.reply_at ? q.reply_at.toISOString() : null
+    }));
+
     res.status(200).json({
       status: true,
       message: "取得提案者全部提案的提問總覽成功",
-      data: questions
+      data: result
     });
   } catch (error) {
     console.error("取得提案者提問總覽失敗", error);
     res.status(500).json({
       status: false,
       message: "取得提問總覽發生錯誤",
+      error: error.message
+    });
+  }
+}
+
+async function replyToProjectComment(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const commentId = parseInt(req.params.id, 10);
+    const { content } = req.body;
+
+    if (!content || content.trim() === "") {
+      return res.status(400).json({ status: false, message: "回覆內容不得為空" });
+    }
+
+    const projectRepo = dataSource.getRepository(Project);
+    const commentRepo = dataSource.getRepository(ProjectComments);
+
+    // 找出使用者擁有的專案 id 陣列
+    const myProjects = await projectRepo.find({
+      where: { user: { id: userId } },
+      select: ["id"]
+    });
+    const myProjectIds = myProjects.map(p => p.id);
+
+    // 用 comment_id 查詢該留言，並同時載入該留言所屬專案
+    const comment = await commentRepo.findOne({
+      where: { comment_id: commentId },
+      relations: ["project"]
+    });
+
+    if (!comment) {
+      return res.status(404).json({ status: false, message: "找不到這筆提問" });
+    }
+
+    // 檢查留言的專案是否屬於該用戶
+    if (!myProjectIds.includes(comment.project.id)) {
+      return res.status(403).json({ status: false, message: "無權回覆這筆提問" });
+    }
+
+    // 寫入回覆內容與時間
+    comment.reply_content = content;
+    comment.reply_at = new Date();
+
+    await commentRepo.save(comment);
+
+    res.status(200).json({
+      status: true,
+      message: "回覆成功"
+    });
+  } catch (error) {
+    console.error("回覆提問發生錯誤", error);
+    res.status(500).json({
+      status: false,
+      message: "回覆提問時發生錯誤",
       error: error.message
     });
   }
@@ -1243,5 +1330,6 @@ module.exports = {
   getMyProjects,
   deleteProject,
   getMyAllQuestions,
-  getMyProjectsQuestions
+  getMyProjectsQuestions,
+  replyToProjectComment
 };
