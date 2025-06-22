@@ -84,11 +84,7 @@ module.exports = ({ secret, userRepository, logger = console }) => {
       next();
     } catch (error) {
       logger.error(`[Auth] ${error.message}`);
-      console.error(" [Auth] 錯誤訊息:", error);
-      return res.status(error.status || 500).json({
-        status: false,
-        message: error.message || "驗證失敗"
-      });
+      next(error);
     }
   };
 };

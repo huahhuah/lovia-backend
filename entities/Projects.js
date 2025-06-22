@@ -32,6 +32,7 @@ module.exports = new EntitySchema({
       type: "int",
       nullable: false
     },
+
     amount: {
       type: "int",
       nullable: false,
@@ -75,6 +76,10 @@ module.exports = new EntitySchema({
       type: "timestamp",
       default: () => "CURRENT_TIMESTAMP"
     },
+    status: {
+      type: "int",
+      default: 1
+    },
     reason: {
       type: "varchar",
       length: 100,
@@ -107,12 +112,8 @@ module.exports = new EntitySchema({
     projectStatus: {
       type: "many-to-one",
       target: "ProjectStatuses",
-      joinColumn: {
-        name: "status", // FK 欄位名
-        referencedColumnName: "id" // 對應 ProjectStatuses 的主鍵
-      },
-      inverseSide: "projects",
-      eager: true // ← 若需要自動帶入狀態名稱可加
+      joinColumn: { name: "status"},  
+      inverseSide: "projects"
     }
   }
 });

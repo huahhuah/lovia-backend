@@ -120,7 +120,7 @@ async function handleEcpayATMInfo(req, res) {
 async function handleEcpayCallback(req, res) {
   try {
     const { CheckMacValue, ...data } = req.body;
-    console.log(" [ECPay Callback] 收到資料：", req.body);
+    console.log("📬 [ECPay Callback] 收到資料：", req.body);
 
     const localCMV = createCheckMacValue(data, true);
     if (CheckMacValue !== localCMV) {
