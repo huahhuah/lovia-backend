@@ -252,7 +252,6 @@ async function updateProject(req, res, next) {
     // 更新有變更的欄位
     if (title !== undefined) project.title = title;
     if (summary !== undefined) project.summary = summary;
-    // 這裡
     if (category !== undefined) {
       const categoryRepo = dataSource.getRepository("Categories");
       const newCategory = await categoryRepo.findOne({
@@ -260,10 +259,8 @@ async function updateProject(req, res, next) {
       });
       if (!newCategory) return next(appError(400, '無效的分類', next));
       project.category = newCategory;
-      console.log(newCategory);
     }     
 
-    //  這裡
     if (total_amount !== undefined) project.total_amount = Number(total_amount);
     if (start_time !== undefined) project.start_time = start_time;
     if (end_time !== undefined) project.end_time = end_time;
@@ -293,7 +290,6 @@ async function updateProject(req, res, next) {
         });
       });
       await planRepo.save(newPlans);
-      console.log(newPlans);
     }
     const resData = {
       title: project.title,
