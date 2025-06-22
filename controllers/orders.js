@@ -3,6 +3,8 @@ const { createEcpayPayment } = require("./ecpay");
 const appError = require("../utils/appError");
 const { dataSource } = require("../db/data-source");
 const Sponsorships = require("../entities/Sponsorships")
+const sponsorshipRepo = dataSource.getRepository(Sponsorships); // 傳入 EntitySchema 物件
+
 
 async function createPaymentRequest(req, res, next) {
   const { amount, email, payment_type } = req.body;
@@ -52,11 +54,11 @@ async function createPaymentRequest(req, res, next) {
 async function getPaymentSuccessInfo(req, res, next) {
   try {
     const { order_id } = req.params;
-    const sponsorshipRepo = dataSource.getRepository("Sponsorships");
+    const sponsorshipRepo = dataSource.getRepository(Sponsorships);
 
     const sponsorship = await sponsorshipRepo.findOne({
-      where: { order_uuid: order_id },
-      relations: ["user", "shipping", "invoice", "invoice.type"]
+      where: { order_uuid: order_id }
+      // relations: 不需要，因為 Entity 裡已 eager: true
     });
 
     if (!sponsorship) {
