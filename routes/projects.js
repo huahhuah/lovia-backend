@@ -26,6 +26,8 @@ router.post("/:project_id/plans/:plan_id/sponsor", auth, projects.sponsorProject
 router.post("/:project_id/plans/:plan_id/sponsor-entry", auth, projects.createProjectSponsorship);
 router.get("/:project_id/faq", projects.getProjectFaq);
 router.get("/:project_id/comments", projects.getProjectComment);
+router.put("/:id", auth, projects.updateProject);
+router.put("/:project_id/plans/:planId", auth, projects.updateProjectPlan);
 router.delete("/:id", auth, projects.deleteProject);
 router.post("/comments/:id/reply", auth, projects.replyToProjectComment);
 

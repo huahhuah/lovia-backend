@@ -219,7 +219,7 @@ async function getProject(req, res, next) {
 //  更新專案或方案
 async function updateProject(req, res, next) {
   try {
-    const projectId = parseInt(req.params.project_id, 10);
+    const projectId = parseInt(req.params.id, 10);
     const user = req.user;
     const projectRepo = dataSource.getRepository("Projects");
     const planRepo = dataSource.getRepository("ProjectPlans");
@@ -249,10 +249,18 @@ async function updateProject(req, res, next) {
       plans
     } = req.body;
 
-    // 更新有變更的欄位
+    // 更新欄位
     if (title !== undefined) project.title = title;
     if (summary !== undefined) project.summary = summary;
-    if (category !== undefined) project.category = category.name; //  這裡
+    if (category !== undefined) {
+      if (typeof category === "object" && category.id !== undefined) {
+        project.category_id = category.id;
+      } else if (typeof category === "number") {
+        project.category_id = category;
+      } else if (typeof category === "string") {
+        project.category_id = parseInt(category, 10);
+      }
+    }
     if (total_amount !== undefined) project.total_amount = Number(total_amount);
     if (start_time !== undefined) project.start_time = start_time;
     if (end_time !== undefined) project.end_time = end_time;
@@ -262,15 +270,18 @@ async function updateProject(req, res, next) {
     if (faq !== undefined) {
       project.faq = JSON.stringify(faq);
     }
-    // 重新判斷 project_type（用更新後的 start_time, end_time）
+
+    // 重新判斷 project_type
     project.project_type = getProjectType(project.start_time, project.end_time);
 
+    // 更新 plans
     let newPlans = [];
-    if (Array.isArray(req.body.plans)) {
-      // 刪除原來plan陣列
-      await planRepo.delete({ project: { id: projectId } });
-      // 建立新的plan陣列
-      newPlans = req.body.plans.map(plan => {
+    if (Array.isArray(plans)) {
+      // 刪除原本的 plans（用 project_id 外鍵）
+      await planRepo.delete({ project_id: projectId });
+
+      // 建立新的 plans 陣列
+      newPlans = plans.map(plan => {
         return planRepo.create({
           plan_name: plan.plan_name,
           amount: Number(plan.amount),
@@ -278,25 +289,31 @@ async function updateProject(req, res, next) {
           feedback: plan.feedback,
           feedback_img: plan.feedback_img,
           delivery_date: plan.delivery_date,
-          project_id: { id: projectId }
+          project_id: projectId
         });
       });
+
       await planRepo.save(newPlans);
     }
+
+    // 儲存更新後的專案
+    const updatedProject = await projectRepo.save(project);
+
+    // 回傳資料，faq 要回傳物件/陣列
     const resData = {
-      title: project.title,
-      summary: project.summary,
-      category: project.category,
-      total_amount: project.total_amount,
-      start_time: project.start_time,
-      end_time: project.end_time,
-      cover: project.cover,
-      full_content: project.full_content,
-      project_team: project.project_team,
-      faq: project.faq || [],
-      newPlans
+      title: updatedProject.title,
+      summary: updatedProject.summary,
+      category_id: updatedProject.category_id,
+      total_amount: updatedProject.total_amount,
+      start_time: updatedProject.start_time,
+      end_time: updatedProject.end_time,
+      cover: updatedProject.cover,
+      full_content: updatedProject.full_content,
+      project_team: updatedProject.project_team,
+      faq: updatedProject.faq ? JSON.parse(updatedProject.faq) : [],
+      plans: newPlans
     };
-    const updateProject = await projectRepo.save(project);
+
     res.status(200).json({
       status: true,
       data: resData
@@ -304,6 +321,44 @@ async function updateProject(req, res, next) {
   } catch (error) {
     logger.error("更新失敗", error);
     next(error);
+  }
+}
+
+async function updateProjectPlan(req, res) {
+  const projectId = parseInt(req.params.project_id, 10);
+  const planId = parseInt(req.params.planId, 10);
+
+  const { plan_name, amount, quantity, feedback, feedback_img, delivery_date } = req.body;
+
+  try {
+    const planRepository = dataSource.getRepository("ProjectPlans");
+
+    // 找出該方案，確保它是屬於這個專案的
+    const plan = await planRepository.findOne({
+      where: {
+        plan_id: planId,
+        project_id: projectId
+      }
+    });
+
+    if (!plan) {
+      return res.status(404).json({ message: "Plan not found." });
+    }
+
+    // 更新欄位
+    plan.plan_name = plan_name;
+    plan.amount = amount;
+    plan.quantity = quantity;
+    plan.feedback = feedback;
+    plan.feedback_img = feedback_img;
+    plan.delivery_date = delivery_date;
+
+    await planRepository.save(plan);
+
+    return res.json(plan);
+  } catch (error) {
+    logger.error(error);
+    return res.status(500).json({ message: "Server error." });
   }
 }
 
@@ -1319,6 +1374,7 @@ module.exports = {
   createProjectPlan,
   getProject,
   updateProject,
+  updateProjectPlan,
   getAllProjects,
   getAllCategories,
   getProjectOverview,
