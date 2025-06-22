@@ -24,6 +24,7 @@
     "config": "^3.3.12",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
     "ecpay_aio_nodejs": "^1.2.2",
     "ecpay-payment": "^1.1.1",
