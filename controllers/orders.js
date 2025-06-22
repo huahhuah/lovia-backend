@@ -321,5 +321,6 @@ async function getMySponsorshipsWithFilters(req, res) {
 module.exports = {
   createPaymentRequest,
   getPaymentSuccessInfo,
-  getMySponsorships
+  getMySponsorships,
+  getMySponsorshipsWithFilters
 };

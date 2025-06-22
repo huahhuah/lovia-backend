@@ -1272,14 +1272,12 @@ async function replyToProjectComment(req, res, next) {
     const projectRepo = dataSource.getRepository(Project);
     const commentRepo = dataSource.getRepository(ProjectComments);
 
-    // 找出使用者擁有的專案 id 陣列
     const myProjects = await projectRepo.find({
       where: { user: { id: userId } },
       select: ["id"]
     });
     const myProjectIds = myProjects.map(p => p.id);
 
-    // 用 comment_id 查詢該留言，並同時載入該留言所屬專案
     const comment = await commentRepo.findOne({
       where: { comment_id: commentId },
       relations: ["project"]
@@ -1289,12 +1287,10 @@ async function replyToProjectComment(req, res, next) {
       return res.status(404).json({ status: false, message: "找不到這筆提問" });
     }
 
-    // 檢查留言的專案是否屬於該用戶
     if (!myProjectIds.includes(comment.project.id)) {
       return res.status(403).json({ status: false, message: "無權回覆這筆提問" });
     }
 
-    // 寫入回覆內容與時間
     comment.reply_content = content;
     comment.reply_at = new Date();
 
@@ -1302,7 +1298,11 @@ async function replyToProjectComment(req, res, next) {
 
     res.status(200).json({
       status: true,
-      message: "回覆成功"
+      message: "回覆成功",
+      data: {
+        reply_content: comment.reply_content,
+        reply_at: comment.reply_at,
+      },
     });
   } catch (error) {
     console.error("回覆提問發生錯誤", error);
