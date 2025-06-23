@@ -13,6 +13,7 @@ const ordersRouter = require("./routes/orders");
 const webhookRouter = require("./routes/webhooks");
 const emailRoutes = require("./routes/email");
 const oauthRoutes = require("./routes/oauth");
+const linePayRoutes = require("./routes/linePay");
 
 const app = express();
 
@@ -70,6 +71,8 @@ app.use("/api/v1", emailRoutes);
 app.use("/api/v1/auth", oauthRoutes);
 // 金流 Webhook / Callback
 app.use("/api/v1/webhooks", require("./routes/webhooks"));
+//linepay-callback
+app.use("/api/v1/linepay", linePayRoutes);
 
 //  健康檢查（可供監控系統使用）
 app.get("/healthcheck", (req, res) => {
