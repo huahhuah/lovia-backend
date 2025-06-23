@@ -218,7 +218,7 @@ async function getPublicPaymentResult(req, res) {
     const repo = dataSource.getRepository("Sponsorships");
     const order = await repo.findOne({
       where: { order_uuid: orderId },
-      relations: ["user", "invoice", "project", "shipping"]
+      relations: ["user", "invoice", "project", "shipping", "invoice.type"]
     });
 
     if (!order) return res.status(404).json({ success: false, message: "找不到訂單" });
@@ -231,16 +231,25 @@ async function getPublicPaymentResult(req, res) {
         amount: order.amount,
         paidAt: order.paid_at,
         paymentMethod: order.payment_method,
-        display_name: order.display_name,
-        email: order.user?.email || "",
-        recipient: order.shipping?.recipient || "",
+        status: order.status,
+        // 贊助者資訊
+        display_name: order.display_name || order.user?.name || "匿名",
+        email: order.user?.account || "",
+        // 收件人資訊
+        recipient: order.shipping?.name || "",
         phone: order.shipping?.phone || "",
         address: order.shipping?.address || "",
         note: order.note,
-        status: order.status,
-        bank_code: order.bank_code,
-        v_account: order.v_account,
-        expire_date: order.expire_date
+        // ATM 付款資訊
+        bank_code: order.bank_code || "",
+        v_account: order.v_account || "",
+        expire_date: order.expire_date || "",
+
+        //發票資訊
+        invoice_type: order.invoice?.type?.name || "", //發票類型（如：捐贈、個人、公司）
+        donate_name: order.invoice?.donate_name || "", // 發票開立對象（若有填寫）
+        mobile_barcode: order.invoice?.mobile_barcode || "", // 手機條碼
+        company_uniform_number: order.invoice?.uniform_number || "" // 公司統編
       }
     });
   } catch (err) {

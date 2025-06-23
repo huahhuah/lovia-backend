@@ -121,6 +121,9 @@ async function handleLinePayConfirm(req, res, next) {
     // 發送通知信
     try {
       await sendSponsorSuccessEmail(sponsorship);
+      if (sponsorship.invoice) {
+        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+      }
     } catch (err) {
       console.error("寄送成功信失敗:", err.message);
     }
