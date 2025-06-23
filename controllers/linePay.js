@@ -214,10 +214,10 @@ async function handleClientConfirm(req, res, next) {
     }
 
     console.log("LINE Pay 付款完成，導回前端結果頁");
-    return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
+    return res.redirect(`${SITE_URL}/payment/PaymentResult?orderId=${orderId}&token=${token}`);
   } catch (err) {
     console.error("LINE Pay Confirm 發生錯誤:", err);
-    return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
+    return res.redirect(`${SITE_URL}/payment/PaymentResult?orderId=${orderId}&token=${token}`);
   }
 }
 
