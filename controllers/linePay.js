@@ -36,7 +36,7 @@ async function handleLinePayRequest({ orderId, amount, email, productName, spons
     ],
     redirectUrls: {
       confirmUrl: `${BACKEND_URL}/api/v1/linepay/payments/confirm?orderId=${orderId}`,
-      cancelUrl: `${SITE_URL}/payment/PaymentCancel`
+      cancelUrl: `${SITE_URL}/payment/PaymentResult?orderId=`
     }
   };
 
