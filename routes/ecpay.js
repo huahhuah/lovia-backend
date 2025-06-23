@@ -1,27 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const {
-  createEcpayPayment,
-  handleEcpayATMInfo,
-  handleEcpayCallback
-} = require("../controllers/ecpay");
+// 綠界金流 callback 控制器
+const { handleEcpayATMInfo, handleEcpayCallback } = require("../controllers/ecpay");
 
 const auth = require("../middlewares/auth");
 const { dataSource } = require("../db/data-source");
 const userRepository = dataSource.getRepository("Users");
 const jwtSecret = process.env.JWT_SECRET;
 
-// 建立付款表單（信用卡或 ATM）
-router.post(
-  "/users/orders/:orderId/ecpay",
-  auth({ secret: jwtSecret, userRepository }),
-  createEcpayPayment
-);
+// 綠界 ATM 回傳虛擬帳號通知（付款前）
+router.post("/atm", handleEcpayATMInfo);
 
-// ATM 取號通知（ECPay 主動通知）
-router.post("/callback/atm", handleEcpayATMInfo);
-
-// 綠界付款完成通知（信用卡或 ATM）
-router.post("/ecpay/callback", handleEcpayCallback);
+// 綠界信用卡付款完成通知（付款後）
+router.post("/confirm", handleEcpayCallback);
 
 module.exports = router;
