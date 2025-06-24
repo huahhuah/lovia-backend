@@ -269,6 +269,8 @@ async function updateProject(req, res, next) {
     if (project_team !== undefined) project.project_team = project_team;
     if (faq !== undefined) {
       project.faq = JSON.stringify(faq);
+    } else if (project.faq && typeof project.faq !== 'string') {
+      project.faq = JSON.stringify(project.faq); // 確保是字串格式儲存
     }
 
     // 重新判斷 project_type
@@ -1114,11 +1116,17 @@ async function getProjectComment(req, res, next) {
       reply_content: comment.reply_content || null,
       reply_at: comment.reply_at ? comment.reply_at.toISOString() : null,
       project: { id: comment.project.id },
-      user: {
-        id: comment.user.id,
-        name: comment.user.username,
-        avatar_url: comment.user.avatar_url
-      }
+      user: comment.user
+      ? {
+          id: comment.user.id,
+          name: comment.user.username,
+          avatar_url: comment.user.avatar_url
+        }
+      : {
+          id: null,
+          name: '未知用戶',
+          avatar_url: null
+        }
     }));
 
     res.status(200).json({
