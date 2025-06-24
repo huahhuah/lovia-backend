@@ -24,5 +24,6 @@ router.get("/projects/:project_id/follow-status", auth, users.getFollowStatus);
 router.post("/postApplication", auth, users.postApplication);
 router.get("/me", auth, users.me);
 router.get("/sponsorships/:order_uuid/result", auth, users.getSponsorshipResult);
+router.get("/my_follows", auth, users.getFollowedProject);
 
 module.exports = router;
