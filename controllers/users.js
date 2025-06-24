@@ -20,6 +20,7 @@ const { getRepository } = require("typeorm");
 const { RelationLoader } = require("typeorm/query-builder/RelationLoader.js");
 const { app } = require("firebase-admin");
 const Proposer_statuses = require("../entities/Proposer_statuses");
+const { readerrevenuesubscriptionlinking } = require("googleapis/build/src/apis/readerrevenuesubscriptionlinking");
 const auth = require("../middlewares/auth")({
   secret: jwtSecret,
   userRepository: dataSource.getRepository("Users"),
@@ -768,6 +769,34 @@ async function getSponsorshipResult(req, res, next) {
   }
 }
 
+// 查詢我追蹤了哪些(我的最愛)
+async function getFollowedProject(req, res, next){
+  try {
+    const userId = req.user.id;
+    const followRepo = dataSource.getRepository("Follows");
+    const allFollows = await followRepo.find({
+      where:{ 
+        user: {id: userId},
+        follow: true
+        },
+      relations: ['project']
+    })
+
+    const result = allFollows.map( a=> a.project)
+    console.log(result)
+
+    res.status(200).json({
+      status: true,
+      message: '成功查詢我的最愛',
+      result,
+    })
+  } catch (err){
+    console.error("❌ 查詢收藏失敗:", err);
+    next(appError(500, '查詢失敗', next))
+  }
+}
+
+
 module.exports = {
   postSignup,
   postLogin,
@@ -781,5 +810,6 @@ module.exports = {
   toggleFollowStatus,
   getFollowStatus,
   me,
-  getSponsorshipResult
+  getSponsorshipResult,
+  getFollowedProject
 };
