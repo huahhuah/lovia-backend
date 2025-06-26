@@ -3,15 +3,16 @@
 module.exports = {
   email: {
     smtp: {
-      host: process.env.SMTP_HOST || 'your-production-smtp-host',
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: process.env.SMTP_SECURE === 'true' || true,
-      user: process.env.SMTP_USER || 'your-production-smtp-user',
-      pass: process.env.SMTP_PASS || 'your-production-smtp-pass',
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: process.env.SMTP_SECURE === 'true',
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
     },
-    frontendBaseUrl: process.env.FRONTEND_BASE_URL || 'https://your-production-frontend-url.com',
+    frontendBaseUrl: process.env.FRONTEND_BASE_URL || 'http://localhost:5173',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-production-jwt-secret',
-  },
+    secret: process.env.JWT_SECRET,
+  }
 };
+
