@@ -5,6 +5,7 @@ const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("User");
 const generateJWT = require("../utils/generateJWT");
 const { sendResetPasswordEmail } = require("../utils/passwordemail");
+const jwt = require("jsonwebtoken")
 const jwtSecret = config.get("secret").jwtSecret;
 const {
   isUndefined,

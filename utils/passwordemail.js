@@ -34,7 +34,7 @@ async function sendResetPasswordEmail(user) {
 
   try {
     await transporter.sendMail({
-      from: `"系統通知" <${smtpConfig.user}>`,
+      from: `"Lovia系統通知" <${smtpConfig.user}>`,
       to: user.account,
       subject: "密碼重設連結",
       html: `
