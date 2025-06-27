@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const appError = require("../utils/appError");
 
 const PERMISSION_DENIED = 401;
 const FailedMessageMap = {

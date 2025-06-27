@@ -18,10 +18,17 @@ async function createPaymentRequest(req, res, next) {
     if (!payment_type) return next(appError(400, "缺少付款方式"));
     if (!userId) return next(appError(401, "請先登入"));
 
-    const normalizedType = payment_type === "card" ? "credit" : payment_type?.toLowerCase();
-    const supportedTypes = ["linepay", "credit", "atm"];
-    if (!supportedTypes.includes(normalizedType)) {
-      return next(appError(400, `不支援的付款方式: ${normalizedType}`));
+    const typeMap = {
+      card: "credit",
+      credit: "credit",
+      webatm: "webatm",
+      linepay: "linepay"
+    };
+    const normalizedType = typeMap[payment_type?.toLowerCase()] || null;
+
+    if (!normalizedType) {
+      console.warn("⚠️ 不支援付款方式:", payment_type);
+      return next(appError(400, `不支援的付款方式: ${payment_type}`));
     }
 
     const sponsorshipRepo = dataSource.getRepository(Sponsorships);
@@ -30,37 +37,75 @@ async function createPaymentRequest(req, res, next) {
       relations: ["user", "plan"]
     });
 
-    if (!order) return next(appError(404, "找不到該訂單"));
-    if (order.user.id !== userId) return next(appError(403, "無權操作此訂單"));
-    if (order.status === "paid") return next(appError(400, "訂單已付款"));
+    if (!order) {
+      console.error(" 找不到訂單:", orderId);
+      return next(appError(404, "找不到該訂單"));
+    }
 
-    const amount = order.amount;
-    const email = order.email || order.user.email;
+    if (order.user.id !== userId) {
+      console.warn(" 訂單使用者不符：", order.user.id, userId);
+      return next(appError(403, "無權操作此訂單"));
+    }
 
-    //  分流處理
+    if (order.status === "paid") {
+      console.info(" 訂單已付款：", orderId);
+      return next(appError(400, "訂單已付款"));
+    }
+
+    const amount = Number(order.amount);
+    const email = order.user?.email?.trim() || order.user?.account;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      console.error(" 訂單金額錯誤：", amount);
+      return next(appError(400, `訂單金額錯誤: ${amount}`));
+    }
+
+    if (!email || typeof email !== "string") {
+      console.error(" Email 錯誤：", email);
+      return next(appError(400, "找不到有效的 email"));
+    }
+
+    const rawName = productName || order.plan?.plan_name || "贊助方案";
+    const safeProductName = rawName
+      .replace(/[^\u4e00-\u9fa5a-zA-Z0-9 ]/g, "") // 中文全區碼 + 英數
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 100);
+
+    req.body.productName = safeProductName;
+    req.body.payment_type = normalizedType;
+
+    // 處理 LINE Pay
     if (normalizedType === "linepay") {
-      const result = await handleLinePayRequest({
-        orderId,
-        amount,
-        email,
-        productName: productName || order.plan?.plan_name || "贊助專案",
-        sponsorship: order,
-        userId
-      });
-      return res.status(200).json({
-        status: true,
-        message: "LINE Pay 建立成功",
-        data: result
-      });
+      try {
+        const result = await handleLinePayRequest({
+          orderId,
+          amount,
+          email,
+          productName: safeProductName,
+          sponsorship: order,
+          userId
+        });
+        return res.status(200).json({
+          status: true,
+          message: "LINE Pay 建立成功",
+          data: result
+        });
+      } catch (lineErr) {
+        console.error(" LINE Pay 建立失敗:", lineErr);
+        return next(appError(500, "LINE Pay 建立失敗"));
+      }
     }
 
-    if (["credit", "atm"].includes(normalizedType)) {
-      return await createEcpayPayment(req, res); // controller 內已直接處理 response
+    //  綠界（Credit 或 WebATM）
+    try {
+      return await createEcpayPayment(req, res);
+    } catch (err) {
+      console.error(" 綠界建立失敗:", err);
+      return next(appError(500, "綠界建立失敗"));
     }
-
-    return next(appError(400, "未實作該付款方式"));
   } catch (err) {
-    console.error("createPaymentRequest 發生錯誤：", err);
+    console.error(" createPaymentRequest 發生錯誤：", err);
     return next(appError(500, "建立付款請求失敗"));
   }
 }
@@ -83,7 +128,7 @@ async function getPaymentSuccessInfo(req, res, next) {
       return next(appError(401, "無效的 token"));
     }
 
-    const sponsorshipRepo = dataSource.getRepository(Sponsorships);
+    const sponsorshipRepo = dataSource.getRepository("Sponsorships");
 
     const sponsorship = await sponsorshipRepo.findOne({
       where: { order_uuid: orderId },
@@ -223,6 +268,17 @@ async function getPublicPaymentResult(req, res) {
 
     if (!order) return res.status(404).json({ success: false, message: "找不到訂單" });
 
+    // 補上 ATM fallback 判斷
+    let paymentMethod = order.payment_method;
+    if (
+      !paymentMethod &&
+      order.status === "pending" &&
+      order.atm_payment_no &&
+      order.atm_bank_code
+    ) {
+      paymentMethod = "ATM";
+    }
+
     return res.json({
       success: true,
       data: {
@@ -241,9 +297,9 @@ async function getPublicPaymentResult(req, res) {
         address: order.shipping?.address || "",
         note: order.note,
         // ATM 付款資訊
-        bank_code: order.bank_code || "",
-        v_account: order.v_account || "",
-        expire_date: order.expire_date || "",
+        bank_code: order.atm_bank_code || "",
+        v_account: order.atm_payment_no || "",
+        expire_date: order.atm_expire_date || "",
 
         //發票資訊
         invoice_type: order.invoice?.type?.name || "", //發票類型（如：捐贈、個人、公司）

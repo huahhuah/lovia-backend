@@ -9,7 +9,6 @@ const {
 } = require("../controllers/orders");
 
 const { handleLinePayConfirm } = require("../controllers/linePay");
-const { handleEcpayCallback, handleEcpayATMInfo } = require("../controllers/ecpay");
 
 const auth = require("../middlewares/auth");
 const { dataSource } = require("../db/data-source");
@@ -35,11 +34,5 @@ router.get("/mine", auth({ secret: jwtSecret, userRepository }), getMySponsorshi
 
 // LINE Pay 成功導回（無需登入）
 router.get("/linepay/confirm", handleLinePayConfirm);
-
-// 綠界信用卡或 ATM 回傳付款成功通知（無需登入）
-router.post("/ecpay/callback", handleEcpayCallback);
-
-// 綠界 ATM 虛擬帳號通知（無需登入）
-router.post("/ecpay/atm-info", handleEcpayATMInfo);
 
 module.exports = router;
