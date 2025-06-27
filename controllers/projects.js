@@ -877,8 +877,6 @@ async function createProjectSponsorship(req, res, next) {
   const { sponsorship = {}, invoice = {}, shipping = {} } = req.body;
   const userId = req.user?.id;
 
-  console.log("接收到的 shipping:", shipping); // Debug log
-
   try {
     if (!userId) return next(appError(401, "請先登入再進行贊助"));
 
@@ -914,6 +912,8 @@ async function createProjectSponsorship(req, res, next) {
       relations: ["invoice", "shipping"]
     });
 
+    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
+
     // 如果已有訂單但沒有 shipping，補上 shipping
     if (existing) {
       if (!existing.shipping) {
@@ -924,10 +924,30 @@ async function createProjectSponsorship(req, res, next) {
           address: shipping?.address?.trim() || "未提供地址",
           note: shipping?.note?.trim() || ""
         });
-        const savedShipping = await shippingRepo.save(newShipping);
-        existing.shipping = savedShipping;
-        await sponsorshipRepo.save(existing);
+        existing.shipping = await shippingRepo.save(newShipping);
       }
+
+      if (!existing.invoice && invoiceTypeCode) {
+        const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
+        if (!invoiceType) return next(appError(400, "發票類型無效"));
+
+        try {
+          validateInvoice(invoice, invoiceTypeCode);
+        } catch (err) {
+          return next(appError(400, err.message || "發票格式錯誤"));
+        }
+
+        const newInvoice = invoiceRepo.create({
+          sponsorship: { id: existing.id },
+          type: invoiceType,
+          carrier_code: invoice.carrier_code?.trim() || null,
+          tax_id: invoice.tax_id?.trim() || null,
+          title: invoice.title?.trim() || null
+        });
+        existing.invoice = await invoiceRepo.save(newInvoice);
+      }
+
+      await sponsorshipRepo.save(existing);
 
       return res.status(200).json({
         status: true,
@@ -962,11 +982,9 @@ async function createProjectSponsorship(req, res, next) {
       address: shipping?.address?.trim() || "未提供地址",
       note: shipping?.note?.trim() || ""
     });
-    const savedShipping = await shippingRepo.save(newShipping);
-    newSponsorship.shipping = savedShipping;
+    newSponsorship.shipping = await shippingRepo.save(newShipping);
 
     // 建立 invoice（若有傳 type）
-    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
       if (!invoiceType) return next(appError(400, "發票類型無效"));
@@ -984,8 +1002,7 @@ async function createProjectSponsorship(req, res, next) {
         tax_id: invoice.tax_id?.trim() || null,
         title: invoice.title?.trim() || null
       });
-      const savedInvoice = await invoiceRepo.save(newInvoice);
-      newSponsorship.invoice = savedInvoice;
+      newSponsorship.invoice = await invoiceRepo.save(newInvoice);
     }
 
     await sponsorshipRepo.save(newSponsorship);
@@ -1269,8 +1286,8 @@ async function getMyAllQuestions(req, res, next) {
             title: q.project.title
           }
         : null,
-        reply_content: q.reply_content ?? null, // 加上回覆內容
-  reply_at: q.reply_at ? q.reply_at.toISOString() : null // 加上回覆時間
+      reply_content: q.reply_content ?? null, // 加上回覆內容
+      reply_at: q.reply_at ? q.reply_at.toISOString() : null // 加上回覆時間
     }));
 
     res.status(200).json({
@@ -1392,8 +1409,8 @@ async function replyToProjectComment(req, res, next) {
       message: "回覆成功",
       data: {
         reply_content: comment.reply_content,
-        reply_at: comment.reply_at,
-      },
+        reply_at: comment.reply_at
+      }
     });
   } catch (error) {
     console.error("回覆提問發生錯誤", error);

@@ -70,9 +70,9 @@ app.use("/api/v1", emailRoutes);
 // 第三方登入（如 Google OAuth）
 app.use("/api/v1/auth", oauthRoutes);
 // 金流 Webhook / Callback
-app.use("/api/v1/webhooks", require("./routes/webhooks"));
 //linepay-callback
 app.use("/api/v1/linepay", linePayRoutes);
+app.use("/api/v1/webhooks", webhookRouter);
 
 //  健康檢查（可供監控系統使用）
 app.get("/healthcheck", (req, res) => {

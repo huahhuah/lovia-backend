@@ -1,53 +1,86 @@
-const { createCheckMacValue, generateEcpayForm, formatToEcpayDate } = require("../utils/ecpay");
+// =================== controllers/ecpay.js ======================
+// 提供綠界金流相關 API，包括：
+//   1. createEcpayPayment - 建立付款頁
+//   2. handleEcpayCallback - 處理信用卡 / WebATM 完成付款通知
+// ---------------------------------------------------------------
+
+const {
+  createCheckMacValue: _cmv,
+  generateEcpayForm: _form,
+  formatToEcpayDate: _fmt
+} = require("../utils/ecpay");
+
 const { dataSource } = require("../db/data-source");
-const { Sponsorships } = require("../entities/Sponsorships");
+const Sponsorships = require("../entities/Sponsorships");
+const Projects = require("../entities/Projects");
 const { sendSponsorSuccessEmail } = require("../utils/sendSponsorSuccessEmail");
 const { sendInvoiceEmail } = require("../utils/sendInvoiceEmail");
-const jwt = require("jsonwebtoken");
 const dayjs = require("dayjs");
+const jwt = require("jsonwebtoken");
 
 const MERCHANT_ID = process.env.ECPAY_MERCHANT_ID;
-const RETURN_URL = process.env.ECPAY_RETURN_URL;
-const SITE_URL = process.env.SITE_URL;
+const RETURN_URL = process.env.ECPAY_RETURN_URL; // Server‑to‑Server callback
+const CLIENT_BACK = process.env.ECPAY_CLIENT_BACK_URL; // 使用者付款完成跳轉
 
-// 建立付款頁
+// 建立付款頁（支援 Credit 與 WebATM）
 async function createEcpayPayment(req, res) {
   try {
     const { orderId } = req.params;
-    if (!orderId) return res.status(400).send("缺少訂單編號");
-
     const repo = dataSource.getRepository(Sponsorships);
     const order = await repo.findOne({
       where: { order_uuid: orderId },
       relations: ["plan", "user"]
     });
-    if (!order) return res.status(404).send("訂單不存在");
+
+    if (!order) {
+      console.warn(" 找不到訂單：", orderId);
+      return res.send("0|NOT_FOUND");
+    }
+
     if (!Number.isFinite(order.amount) || order.amount <= 0)
       return res.status(400).send("金額不合法");
 
     const now = new Date();
-    const tradeNo = "ECPAY" + now.getTime();
-    const rawName = (req.body.productName || order.plan?.title || "贊助方案").trim();
+    const tradeNo = `ECPAY${now.getTime()}`.slice(0, 20);
+
+    // 商品名稱清洗（移除特殊符號）
+    const rawName = (req.body.productName || order.plan?.plan_name || "贊助方案").trim();
     const itemName = rawName
       .replace(/[^\u4e00-\u9fa5a-zA-Z0-9 ]/g, "")
       .replace(/\s+/g, " ")
-      .trim()
       .slice(0, 100);
-    const paymentType = (req.body.payment_type || "").toLowerCase() === "atm" ? "ATM" : "Credit";
 
-    order.payment_trade_no = tradeNo.slice(0, 20);
+    // 支援的付款方式：credit、webatm
+    const rawType = (req.body.payment_type || "credit").toLowerCase();
+    let payType;
+
+    switch (rawType) {
+      case "webatm":
+        payType = "WebATM";
+        break;
+      case "credit":
+        payType = "Credit";
+        break;
+      default:
+        return res.status(400).json({ status: "failed", message: `不支援的付款方式: ${rawType}` });
+    }
+
+    // 存入交易編號
+    order.payment_trade_no = tradeNo;
     await repo.save(order);
 
+    // 組合 ECPay 參數
     const params = {
       MerchantID: MERCHANT_ID,
-      MerchantTradeNo: tradeNo.slice(0, 20),
-      MerchantTradeDate: formatToEcpayDate(now),
+      MerchantTradeNo: tradeNo,
+      MerchantTradeDate: _fmt(now),
       PaymentType: "aio",
       TotalAmount: String(Math.round(order.amount)),
       TradeDesc: "LoviaSponsorship",
       ItemName: itemName,
       ReturnURL: RETURN_URL,
-      ClientBackURL: `${SITE_URL}/checkout/result?orderId=${orderId}`,
+      ClientBackURL: `${CLIENT_BACK}?orderId=${orderId}&method=ecpay`,
+      ChoosePayment: payType,
       CustomField1: orderId,
       CustomField2: tradeNo,
       CustomField3: order.user?.id || "",
@@ -55,131 +88,111 @@ async function createEcpayPayment(req, res) {
       EncryptType: 1
     };
 
-    if (paymentType === "ATM") {
-      params.ExpireDate = 3;
-      params.PaymentInfoURL = process.env.ECPAY_PAYMENT_INFO_URL || RETURN_URL;
-    }
+    params.CheckMacValue = _cmv(params);
 
-    params.CheckMacValue = createCheckMacValue(params, true);
-    const form = generateEcpayForm(params);
-
+    const form = _form(params);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(form);
   } catch (err) {
-    console.error("建立 ECPay 付款頁失敗：", err);
-    res.status(500).send(`建立付款頁失敗：${err.message || "unknown error"}`);
+    console.error(" createEcpayPayment error:", err);
+    res.status(500).send(`建立付款頁失敗：${err.message || "unknown"}`);
   }
 }
 
-// ATM 虛擬帳號通知
-async function handleEcpayATMInfo(req, res) {
-  try {
-    const { MerchantTradeNo, PaymentNo, BankCode, ExpireDate, TradeAmt, CustomField1 } = req.body;
-    const order_uuid = CustomField1;
-
-    console.log("ATM 虛擬帳號通知：", req.body);
-    if (!MerchantTradeNo || !order_uuid || !PaymentNo || !BankCode || !ExpireDate) {
-      console.warn("缺少參數：", req.body);
-      return res.send("0|MISSING_PARAMS");
-    }
-
-    const repo = dataSource.getRepository("Sponsorships");
-    const order = await repo.findOneBy({ order_uuid });
-    if (!order) return res.send("0|NOT_FOUND");
-    if (order.status === "paid") return res.send("1|ALREADY_PAID");
-
-    if (TradeAmt && parseInt(TradeAmt) !== Math.round(order.amount)) {
-      console.warn("ATM 金額不符：", TradeAmt, "vs", order.amount);
-      return res.send("0|AMOUNT_MISMATCH");
-    }
-
-    order.payment_method = "ATM";
-    order.status = "pending";
-    order.transaction_id = MerchantTradeNo;
-    order.atm_bank_code = BankCode;
-    order.atm_payment_no = PaymentNo;
-    order.atm_expire_date = new Date(`${ExpireDate.replace(/\//g, "-")}T23:59:59+08:00`);
-    order.payment_result = JSON.stringify(req.body);
-
-    await repo.save(order);
-    return res.send("1|OK");
-  } catch (err) {
-    console.error("ATM 虛擬帳號處理錯誤：", err);
-    return res.send("0|SERVER_ERROR");
-  }
-}
-
-// 金流付款完成 callback
+// 處理付款完成通知（Credit / WebATM）
 async function handleEcpayCallback(req, res) {
   try {
     const { CheckMacValue, ...data } = req.body;
-    console.log("[ECPay Callback] 收到資料：", req.body);
 
-    const localCMV = createCheckMacValue(data, true);
-    if (CheckMacValue !== localCMV) return res.send("0|CHECKMAC_ERROR");
+    // 驗證 CheckMacValue
+    if (process.env.DEBUG_ECPAY !== "true" && _cmv(data) !== CheckMacValue) {
+      console.warn(" CheckMacValue 驗證失敗");
+      return res.send("0|CHECKMAC_ERROR");
+    }
 
-    const { MerchantTradeNo, RtnCode, RtnMsg, PaymentDate, TradeAmt, PaymentType, CustomField1 } =
-      data;
-    const order_uuid = CustomField1;
+    const {
+      MerchantTradeNo: tradeNo,
+      RtnCode,
+      PaymentDate,
+      TradeAmt,
+      PaymentType,
+      CustomField1: orderId
+    } = data;
 
-    const repo = dataSource.getRepository("Sponsorships");
+    if (parseInt(RtnCode) !== 1) {
+      console.warn(" 綠界回傳失敗，RtnCode 非 1：", RtnCode);
+      return res.send("0|FAIL");
+    }
+
+    const repo = dataSource.getRepository(Sponsorships);
     const order = await repo.findOne({
-      where: { order_uuid },
+      where: { order_uuid: orderId },
       relations: ["user", "invoice", "invoice.type", "project"]
     });
 
-    if (!order) return res.send("0|NOT_FOUND");
-    if (parseInt(RtnCode) !== 1) return res.send("0|FAIL");
+    if (!order) {
+      console.warn(" 找不到訂單：", orderId);
+      return res.send("0|NOT_FOUND");
+    }
+
     if (order.status === "paid") return res.send("1|OK");
-    if (parseInt(TradeAmt) !== Math.round(order.amount)) return res.send("0|AMOUNT_MISMATCH");
 
-    order.paid_at = dayjs(PaymentDate, "YYYY/MM/DD HH:mm:ss").toDate();
-    order.status = "paid";
-    order.payment_status = "paid";
-    order.payment_method = `綠界 ${PaymentType || "Credit"}`;
-    order.transaction_id = MerchantTradeNo;
-    order.payment_result = JSON.stringify(req.body);
+    if (Number(TradeAmt) !== Math.round(order.amount)) {
+      console.warn(" 金額不符：", TradeAmt, "vs", order.amount);
+      return res.send("0|AMOUNT_MISMATCH");
+    }
 
+    // 更新付款資訊
+    Object.assign(order, {
+      paid_at: dayjs(PaymentDate, "YYYY/MM/DD HH:mm:ss").toDate(),
+      status: "paid",
+      payment_status: "paid",
+      payment_method: `綠界 ${PaymentType || "Credit"}`,
+      transaction_id: tradeNo,
+      payment_result: JSON.stringify(req.body)
+    });
     await repo.save(order);
 
+    // 專案累積金額 + email / invoice 處理
     try {
-      const projectRepo = dataSource.getRepository("Projects");
+      const projectRepo = dataSource.getRepository(Projects);
       const project = await projectRepo.findOneBy({ id: order.project.id });
       if (project) {
         project.amount += order.amount;
         await projectRepo.save(project);
       }
-    } catch (err) {
-      console.error("專案金額更新失敗：", err);
+    } catch (e) {
+      console.error("專案金額累積失敗:", e);
     }
 
+    // 寄送通知與發票
     try {
-      const invoiceType = order.invoice?.type?.name || order.invoice?.type;
+      const invType = order.invoice?.type?.name || order.invoice?.type;
       await Promise.allSettled([
         sendSponsorSuccessEmail(order),
-        invoiceType && invoiceType !== "donate"
-          ? sendInvoiceEmail(order, order.invoice)
-          : Promise.resolve()
+        invType && invType !== "donate" ? sendInvoiceEmail(order, order.invoice) : Promise.resolve()
       ]);
-    } catch (err) {
-      console.error("通知或發票處理失敗：", err.message);
+    } catch (e) {
+      console.error("寄送通知失敗:", e);
     }
 
+    // 讓前端帶 token 可以直接載入付款成功資訊
     try {
       const token = jwt.sign({ id: order.user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-      return res.redirect(`${SITE_URL}/checkout/result?orderId=${order_uuid}`);
-    } catch (err) {
-      console.error("建立 JWT 或 redirect 錯誤：", err.message);
-      return res.send("1|OK");
+      const redirectUrl = `${CLIENT_BACK}?orderId=${orderId}&token=${token}`;
+      if (!res.headersSent) return res.redirect(redirectUrl);
+    } catch (e) {
+      console.error("JWT 產生或 redirect 失敗:", e);
     }
+
+    return res.send("1|OK");
   } catch (err) {
-    console.error("Callback 處理錯誤：", err);
+    console.error(" handleEcpayCallback error:", err);
     return res.send("0|SERVER_ERROR");
   }
 }
 
 module.exports = {
   createEcpayPayment,
-  handleEcpayATMInfo,
   handleEcpayCallback
 };
