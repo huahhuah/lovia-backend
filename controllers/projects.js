@@ -269,7 +269,7 @@ async function updateProject(req, res, next) {
     if (project_team !== undefined) project.project_team = project_team;
     if (faq !== undefined) {
       project.faq = JSON.stringify(faq);
-    } else if (project.faq && typeof project.faq !== 'string') {
+    } else if (project.faq && typeof project.faq !== "string") {
       project.faq = JSON.stringify(project.faq); // 確保是字串格式儲存
     }
 
@@ -914,11 +914,10 @@ async function createProjectSponsorship(req, res, next) {
 
     const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
 
-    // 如果已有訂單但沒有 shipping，補上 shipping
+    // 如果已有訂單但沒有 shipping 或 invoice，補上
     if (existing) {
       if (!existing.shipping) {
         const newShipping = shippingRepo.create({
-          sponsorship: { id: existing.id },
           name: shipping?.name?.trim() || "未提供姓名",
           phone: shipping?.phone?.trim() || "0912345678",
           address: shipping?.address?.trim() || "未提供地址",
@@ -938,7 +937,6 @@ async function createProjectSponsorship(req, res, next) {
         }
 
         const newInvoice = invoiceRepo.create({
-          sponsorship: { id: existing.id },
           type: invoiceType,
           carrier_code: invoice.carrier_code?.trim() || null,
           tax_id: invoice.tax_id?.trim() || null,
@@ -972,11 +970,9 @@ async function createProjectSponsorship(req, res, next) {
       note: sponsorship.note?.trim() || "",
       status: "pending"
     });
-    await sponsorshipRepo.save(newSponsorship);
 
-    // 建立 shipping（保證一定寫入）
+    // 建立 shipping
     const newShipping = shippingRepo.create({
-      sponsorship: { id: newSponsorship.id },
       name: shipping?.name?.trim() || "未提供姓名",
       phone: shipping?.phone?.trim() || "0912345678",
       address: shipping?.address?.trim() || "未提供地址",
@@ -984,7 +980,7 @@ async function createProjectSponsorship(req, res, next) {
     });
     newSponsorship.shipping = await shippingRepo.save(newShipping);
 
-    // 建立 invoice（若有傳 type）
+    // 建立 invoice（如有）
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
       if (!invoiceType) return next(appError(400, "發票類型無效"));
@@ -996,7 +992,6 @@ async function createProjectSponsorship(req, res, next) {
       }
 
       const newInvoice = invoiceRepo.create({
-        sponsorship: { id: newSponsorship.id },
         type: invoiceType,
         carrier_code: invoice.carrier_code?.trim() || null,
         tax_id: invoice.tax_id?.trim() || null,
@@ -1005,6 +1000,7 @@ async function createProjectSponsorship(req, res, next) {
       newSponsorship.invoice = await invoiceRepo.save(newInvoice);
     }
 
+    // 最終儲存 sponsorship（含關聯）
     await sponsorshipRepo.save(newSponsorship);
 
     return res.status(200).json({
@@ -1134,16 +1130,16 @@ async function getProjectComment(req, res, next) {
       reply_at: comment.reply_at ? comment.reply_at.toISOString() : null,
       project: { id: comment.project.id },
       user: comment.user
-      ? {
-          id: comment.user.id,
-          name: comment.user.username,
-          avatar_url: comment.user.avatar_url
-        }
-      : {
-          id: null,
-          name: '未知用戶',
-          avatar_url: null
-        }
+        ? {
+            id: comment.user.id,
+            name: comment.user.username,
+            avatar_url: comment.user.avatar_url
+          }
+        : {
+            id: null,
+            name: "未知用戶",
+            avatar_url: null
+          }
     }));
 
     res.status(200).json({
