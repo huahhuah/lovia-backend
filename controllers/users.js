@@ -121,7 +121,7 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
-      select: ["id", "username", "hashed_password", "role"],
+      select: ["id", "username", "hashed_password", "role", "avatar_url"],  // 加入頭貼
       where: { account },
       relations: ["role"]
     });
@@ -139,7 +139,8 @@ async function postLogin(req, res, next) {
       {
         id: existingUser.id,
         role_id: existingUser.role.id,
-        role: existingUser.role.role
+        role: existingUser.role.role,
+        avatar_url: existingUser.avatar_url  // 加入頭貼
       },
       { expiresIn: "2h" }
     );
