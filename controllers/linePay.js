@@ -110,30 +110,23 @@ async function handleLinePayConfirm(req, res, next) {
     sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     await sponsorshipRepo.save(sponsorship);
 
-    // 更新專案金額
-    const projectRepo = dataSource.getRepository("Projects");
-    const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
-    if (project) {
-      project.amount += sponsorship.amount;
-      await projectRepo.save(project);
+    // 專案累計金額
+    try {
+      const projectRepo = dataSource.getRepository(Projects);
+      const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
+      if (project) {
+        project.amount += sponsorship.amount;
+        await projectRepo.save(project);
+      }
+    } catch (e) {
+      console.error("專案金額累積失敗:", e);
     }
 
-    // 發送通知信
+    //  呼叫新版自動判斷寄捐贈 or 發票
     try {
       await sendSponsorSuccessEmail(sponsorship);
-      if (sponsorship.invoice) {
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      }
     } catch (err) {
-      console.error("寄送成功信失敗:", err.message);
-    }
-
-    if (sponsorship.invoice) {
-      try {
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      } catch (err) {
-        console.error("寄送發票信失敗:", err.message);
-      }
+      console.error("寄送贊助成功通知失敗:", err.message);
     }
 
     const token = jwt.sign({ id: sponsorship.user.id }, jwtSecret, { expiresIn: "1h" });

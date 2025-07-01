@@ -165,18 +165,14 @@ async function handleEcpayCallback(req, res) {
       console.error("專案金額累積失敗:", e);
     }
 
-    // 寄送通知與發票
+    //  寄送贊助成功信（內部自動判斷是否為捐贈）
     try {
-      const invType = order.invoice?.type?.name || order.invoice?.type;
-      await Promise.allSettled([
-        sendSponsorSuccessEmail(order),
-        invType && invType !== "donate" ? sendInvoiceEmail(order, order.invoice) : Promise.resolve()
-      ]);
+      await sendSponsorSuccessEmail(order);
     } catch (e) {
-      console.error("寄送通知失敗:", e);
+      console.error("贊助成功通知信寄送失敗:", e);
     }
 
-    // 讓前端帶 token 可以直接載入付款成功資訊
+    // JWT 導回
     try {
       const token = jwt.sign({ id: order.user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
       const redirectUrl = `${CLIENT_BACK}?orderId=${orderId}&token=${token}`;

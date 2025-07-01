@@ -901,6 +901,9 @@ async function createProjectSponsorship(req, res, next) {
       return next(appError(400, "贊助金額必須為正整數"));
     }
 
+    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
+
+    // 查詢現有未付款訂單
     const existing = await sponsorshipRepo.findOne({
       where: {
         user: { id: userId },
@@ -912,11 +915,10 @@ async function createProjectSponsorship(req, res, next) {
       relations: ["invoice", "shipping"]
     });
 
-    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
-
-    // 如果已有訂單但沒有 shipping 或 invoice，補上
+    // ⚡ 如果已有訂單
     if (existing) {
-      if (!existing.shipping) {
+      // 非捐贈才補 shipping
+      if (!existing.shipping && invoiceTypeCode !== "donate") {
         const newShipping = shippingRepo.create({
           name: shipping?.name?.trim() || "未提供姓名",
           phone: shipping?.phone?.trim() || "0912345678",
@@ -926,10 +928,10 @@ async function createProjectSponsorship(req, res, next) {
         existing.shipping = await shippingRepo.save(newShipping);
       }
 
-      if (!existing.invoice && invoiceTypeCode) {
+      // 非捐贈才補 invoice
+      if (!existing.invoice && invoiceTypeCode && invoiceTypeCode !== "donate") {
         const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
         if (!invoiceType) return next(appError(400, "發票類型無效"));
-
         try {
           validateInvoice(invoice, invoiceTypeCode);
         } catch (err) {
@@ -958,7 +960,7 @@ async function createProjectSponsorship(req, res, next) {
       });
     }
 
-    // 建立新 sponsorship
+    // 🚀 建立新 sponsorship
     const newSponsorship = sponsorshipRepo.create({
       user: { id: userId },
       project,
@@ -971,20 +973,21 @@ async function createProjectSponsorship(req, res, next) {
       status: "pending"
     });
 
-    // 建立 shipping
-    const newShipping = shippingRepo.create({
-      name: shipping?.name?.trim() || "未提供姓名",
-      phone: shipping?.phone?.trim() || "0912345678",
-      address: shipping?.address?.trim() || "未提供地址",
-      note: shipping?.note?.trim() || ""
-    });
-    newSponsorship.shipping = await shippingRepo.save(newShipping);
+    // 非捐贈才建立 shipping
+    if (invoiceTypeCode !== "donate") {
+      const newShipping = shippingRepo.create({
+        name: shipping?.name?.trim() || "未提供姓名",
+        phone: shipping?.phone?.trim() || "0912345678",
+        address: shipping?.address?.trim() || "未提供地址",
+        note: shipping?.note?.trim() || ""
+      });
+      newSponsorship.shipping = await shippingRepo.save(newShipping);
+    }
 
-    // 建立 invoice（如有）
-    if (invoiceTypeCode) {
+    // 非捐贈才建立 invoice
+    if (invoiceTypeCode && invoiceTypeCode !== "donate") {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
       if (!invoiceType) return next(appError(400, "發票類型無效"));
-
       try {
         validateInvoice(invoice, invoiceTypeCode);
       } catch (err) {
@@ -1000,12 +1003,18 @@ async function createProjectSponsorship(req, res, next) {
       newSponsorship.invoice = await invoiceRepo.save(newInvoice);
     }
 
-    // 最終儲存 sponsorship（含關聯）
+    //  最終儲存 sponsorship
     await sponsorshipRepo.save(newSponsorship);
+
+    //  如果是捐贈，額外訊息：可在寄信或回應裡說明
+    const thankMsg =
+      invoiceTypeCode === "donate"
+        ? "您的發票將全數捐贈給 台灣兒童暨家庭扶助基金會，感謝您的愛心！"
+        : "訂單建立成功，請完成付款。";
 
     return res.status(200).json({
       status: true,
-      message: "訂單建立成功，請完成付款",
+      message: thankMsg,
       data: {
         orderId: newSponsorship.order_uuid,
         sponsorshipId: newSponsorship.id,
