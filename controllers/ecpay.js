@@ -103,6 +103,7 @@ async function createEcpayPayment(req, res) {
 async function handleEcpayCallback(req, res) {
   try {
     const { CheckMacValue, ...data } = req.body;
+    const nowStr = new Date().toISOString();
 
     // 驗證 CheckMacValue
     if (process.env.DEBUG_ECPAY !== "true" && _cmv(data) !== CheckMacValue) {
@@ -120,7 +121,7 @@ async function handleEcpayCallback(req, res) {
     } = data;
 
     if (parseInt(RtnCode) !== 1) {
-      console.warn(" 綠界回傳失敗，RtnCode 非 1：", RtnCode);
+      console.warn(`[${nowStr}]  綠界回傳失敗，RtnCode: ${RtnCode}`);
       return res.send("0|FAIL");
     }
 
@@ -131,14 +132,14 @@ async function handleEcpayCallback(req, res) {
     });
 
     if (!order) {
-      console.warn(" 找不到訂單：", orderId);
+      console.warn(`[${nowStr}]  找不到訂單 ${orderId}`);
       return res.send("0|NOT_FOUND");
     }
 
     if (order.status === "paid") return res.send("1|OK");
 
     if (Number(TradeAmt) !== Math.round(order.amount)) {
-      console.warn(" 金額不符：", TradeAmt, "vs", order.amount);
+      console.warn(`[${nowStr}]  金額不符 ${TradeAmt} vs ${order.amount}`);
       return res.send("0|AMOUNT_MISMATCH");
     }
 
@@ -169,16 +170,15 @@ async function handleEcpayCallback(req, res) {
     try {
       const invCode = order.invoice?.type?.code || order.invoice?.type;
 
+      await sendSponsorSuccessEmail(order);
+
       if (invCode === "donate") {
-        console.log(" 捐贈發票，完全不寄任何信件");
+        console.log(`[${nowStr}]  捐贈發票，不寄發票信`);
       } else {
-        await Promise.allSettled([
-          sendSponsorSuccessEmail(order),
-          sendInvoiceEmail(order, order.invoice)
-        ]);
+        await sendInvoiceEmail(order, order.invoice);
       }
     } catch (e) {
-      console.error("寄送通知失敗:", e);
+      console.error(`[${nowStr}]  寄送信件失敗:`, e);
     }
 
     // 讓前端帶 token 可以直接載入付款成功資訊
@@ -187,12 +187,12 @@ async function handleEcpayCallback(req, res) {
       const redirectUrl = `${CLIENT_BACK}?orderId=${orderId}&token=${token}`;
       if (!res.headersSent) return res.redirect(redirectUrl);
     } catch (e) {
-      console.error("JWT 產生或 redirect 失敗:", e);
+      console.error(`[${nowStr}]WT 產生或 redirect 失敗:`, e);
     }
 
     return res.send("1|OK");
   } catch (err) {
-    console.error(" handleEcpayCallback error:", err);
+    console.error(`[${new Date().toISOString()}]  handleEcpayCallback 錯誤:`, err);
     return res.send("0|SERVER_ERROR");
   }
 }
