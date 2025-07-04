@@ -405,8 +405,6 @@ async function getAllProjects(req, res, next) {
     const keyword = req.query.search || "";
 
     const today = new Date();
-    const next70Days = new Date();
-    next70Days.setDate(today.getDate() + 70);
 
     const start = Date.now();
 
@@ -435,47 +433,45 @@ async function getAllProjects(req, res, next) {
       ])
       .andWhere("project.status = :approvedStatus", { approvedStatus: 2 });
 
-    // 篩選條件
+    // 篩選分類
     if (categoryId) {
       qb.andWhere("project.category_id = :categoryId", { categoryId });
     }
 
+    // 關鍵字搜尋
     if (keyword) {
       qb.andWhere("project.title ILIKE :kw OR project.summary ILIKE :kw", {
         kw: `%${keyword}%`
       });
     }
 
-    // 篩選條件分類
-    const filtersRequiringActive = ["recent", "funding", "long", "popular", "all"];
-    if (filtersRequiringActive.includes(filter)) {
-      qb.andWhere("project.is_finished = false");
-    }
-
+    // 各 filter 條件
     switch (filter) {
       case "recent":
-        qb.andWhere("project.end_time BETWEEN :today AND :next70Days", {
-          today,
-          next70Days
-        });
+        qb.andWhere("project.end_time > :today", { today });
         break;
       case "funding":
+        qb.andWhere("project.is_finished = false");
         qb.andWhere("project.project_type NOT IN ('長期贊助', '歷年專案')");
         break;
       case "long":
+        qb.andWhere("project.is_finished = false");
         qb.andWhere("project.project_type = '長期贊助'");
         break;
       case "archived":
         qb.andWhere("project.project_type = '歷年專案'");
         break;
-      // other cases already handled
+      case "popular":
+        qb.andWhere("project.is_finished = false");
+        break;
+      // case "all": 不加 is_finished 限制，抓全部
     }
 
-    // 排序
+    // 排序邏輯
     if (filter === "popular") {
       qb.orderBy("project.amount", "DESC").addOrderBy("project.created_at", "DESC");
     } else if (filter === "recent") {
-      qb.orderBy("project.end_time", "ASC");
+      qb.orderBy("project.end_time", "ASC"); // 即將到期的在前
     } else {
       qb.orderBy("project.created_at", sort === "oldest" ? "ASC" : "DESC");
     }
@@ -518,6 +514,7 @@ async function getAllProjects(req, res, next) {
     res.status(200).json({
       status: true,
       message: "專案列表取得成功",
+      total,
       data: formatted,
       pagination: {
         current_page: page,
