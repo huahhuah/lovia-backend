@@ -121,14 +121,14 @@ async function handleLinePayConfirm(req, res, next) {
     // 發送通知信
     try {
       const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+      console.log("LINE Pay 發票型態:", invCode);
+
+      await sendSponsorSuccessEmail(sponsorship);
 
       if (invCode === "donate") {
         console.log(" 捐贈發票，不寄任何信件");
       } else {
-        await Promise.allSettled([
-          sendSponsorSuccessEmail(sponsorship),
-          sendInvoiceEmail(sponsorship, sponsorship.invoice)
-        ]);
+        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
       }
     } catch (err) {
       console.error("寄送通知失敗:", err.message);
