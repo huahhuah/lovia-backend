@@ -120,20 +120,18 @@ async function handleLinePayConfirm(req, res, next) {
 
     // 發送通知信
     try {
-      await sendSponsorSuccessEmail(sponsorship);
-      if (sponsorship.invoice) {
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+      const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+
+      if (invCode === "donate") {
+        console.log(" 捐贈發票，不寄任何信件");
+      } else {
+        await Promise.allSettled([
+          sendSponsorSuccessEmail(sponsorship),
+          sendInvoiceEmail(sponsorship, sponsorship.invoice)
+        ]);
       }
     } catch (err) {
-      console.error("寄送成功信失敗:", err.message);
-    }
-
-    if (sponsorship.invoice) {
-      try {
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      } catch (err) {
-        console.error("寄送發票信失敗:", err.message);
-      }
+      console.error("寄送通知失敗:", err.message);
     }
 
     const token = jwt.sign({ id: sponsorship.user.id }, jwtSecret, { expiresIn: "1h" });

@@ -167,11 +167,16 @@ async function handleEcpayCallback(req, res) {
 
     // 寄送通知與發票
     try {
-      const invType = order.invoice?.type?.name || order.invoice?.type;
-      await Promise.allSettled([
-        sendSponsorSuccessEmail(order),
-        invType && invType !== "donate" ? sendInvoiceEmail(order, order.invoice) : Promise.resolve()
-      ]);
+      const invCode = order.invoice?.type?.code || order.invoice?.type;
+
+      if (invCode === "donate") {
+        console.log(" 捐贈發票，完全不寄任何信件");
+      } else {
+        await Promise.allSettled([
+          sendSponsorSuccessEmail(order),
+          sendInvoiceEmail(order, order.invoice)
+        ]);
+      }
     } catch (e) {
       console.error("寄送通知失敗:", e);
     }
