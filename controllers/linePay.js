@@ -85,7 +85,6 @@ async function handleLinePayConfirm(req, res, next) {
       return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
     }
 
-    // LINE Pay confirm
     const uri = `/v3/payments/${transactionId}/confirm`;
     const nonce = uuidv4();
     const confirmBody = { amount: sponsorship.amount, currency: CURRENCY };
@@ -115,21 +114,21 @@ async function handleLinePayConfirm(req, res, next) {
       await projectRepo.save(project);
     }
 
-    // 寄送信件
+    // robust 保證不寄發票
     try {
-      const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+      const invCode = (sponsorship.invoice?.type?.code || sponsorship.invoice?.type || "").toLowerCase();
       console.log("LINE Pay 發票型態:", invCode);
 
-      await sendSponsorSuccessEmail(sponsorship); // 一律寄贊助成功通知信
+      await sendSponsorSuccessEmail(sponsorship);
 
-      if ((invCode || "").toLowerCase().includes("donate")) {
-    console.log("此為捐贈發票類型，不寄發票信");
-  } else {
-    await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-  }
-} catch (err) {
-  console.error("寄送通知失敗:", err.message);
-}
+      if (["donate", "donation"].includes(invCode)) {
+        console.log("此為捐贈發票型態，不寄發票信");
+      } else {
+        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+      }
+    } catch (err) {
+      console.error("寄送通知失敗:", err.message);
+    }
 
     const token = jwt.sign({ id: sponsorship.user.id }, jwtSecret, { expiresIn: "1h" });
     return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
@@ -138,7 +137,6 @@ async function handleLinePayConfirm(req, res, next) {
     return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
   }
 }
-
 
 /**
  * [3] 使用者取消付款導回
@@ -169,7 +167,6 @@ async function handleClientConfirm(req, res, next) {
       return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
     }
 
-    // 再向 LINE Pay 確認一次
     const uri = `/v3/payments/${transactionId}/confirm`;
     const nonce = uuidv4();
     const confirmBody = { amount: sponsorship.amount, currency: CURRENCY };
@@ -191,6 +188,7 @@ async function handleClientConfirm(req, res, next) {
     sponsorship.payment_result = JSON.stringify(confirmResponse?.data || {});
     await sponsorshipRepo.save(sponsorship);
 
+    // 更新專案金額
     const projectRepo = dataSource.getRepository("Projects");
     const project = await projectRepo.findOneBy({ id: sponsorship.project.id });
     if (project) {
@@ -198,21 +196,21 @@ async function handleClientConfirm(req, res, next) {
       await projectRepo.save(project);
     }
 
-    // 寄送信件
+    // robust 保證不寄發票
     try {
-      const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+      const invCode = (sponsorship.invoice?.type?.code || sponsorship.invoice?.type || "").toLowerCase();
       console.log("LINE Pay 查詢確認發票型態:", invCode);
 
       await sendSponsorSuccessEmail(sponsorship);
 
-      if ((invCode || "").toLowerCase().includes("donate")) {
-    console.log("此為捐贈發票類型，不寄發票信");
-  } else {
-    await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-  }
-} catch (err) {
-  console.error("寄送通知失敗:", err.message);
-}
+      if (["donate", "donation"].includes(invCode)) {
+        console.log("此為捐贈發票型態，不寄發票信");
+      } else {
+        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+      }
+    } catch (err) {
+      console.error("寄送通知失敗:", err.message);
+    }
 
     console.log("LINE Pay 付款完成，導回前端結果頁");
     return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
@@ -221,6 +219,7 @@ async function handleClientConfirm(req, res, next) {
     return res.redirect(`${SITE_URL}/payment/PaymentCancel`);
   }
 }
+
 
 module.exports = {
   handleLinePayRequest,
