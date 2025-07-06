@@ -122,14 +122,14 @@ async function handleLinePayConfirm(req, res, next) {
 
       await sendSponsorSuccessEmail(sponsorship); // 一律寄贊助成功通知信
 
-      if (invCode?.toLowerCase() === "donate") {
-        console.log(" 捐贈發票，不寄發票信");
-      } else {
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      }
-    } catch (err) {
-      console.error("寄送通知失敗:", err.message);
-    }
+      if ((invCode || "").toLowerCase().includes("donate")) {
+    console.log("此為捐贈發票類型，不寄發票信");
+  } else {
+    await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+  }
+} catch (err) {
+  console.error("寄送通知失敗:", err.message);
+}
 
     const token = jwt.sign({ id: sponsorship.user.id }, jwtSecret, { expiresIn: "1h" });
     return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
@@ -205,14 +205,14 @@ async function handleClientConfirm(req, res, next) {
 
       await sendSponsorSuccessEmail(sponsorship);
 
-      if (invCode?.toLowerCase() === "donate") {
-        console.log(" 捐贈發票，不寄發票信");
-      } else {
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      }
-    } catch (err) {
-      console.error("寄送通知失敗:", err.message);
-    }
+      if ((invCode || "").toLowerCase().includes("donate")) {
+    console.log("此為捐贈發票類型，不寄發票信");
+  } else {
+    await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+  }
+} catch (err) {
+  console.error("寄送通知失敗:", err.message);
+}
 
     console.log("LINE Pay 付款完成，導回前端結果頁");
     return res.redirect(`${SITE_URL}/checkout/result?orderId=${orderId}&token=${token}`);
