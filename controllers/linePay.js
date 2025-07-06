@@ -114,22 +114,22 @@ async function handleLinePayConfirm(req, res, next) {
       await projectRepo.save(project);
     }
 
-    // 保證不寄發票
-const invCode =
-  ((typeof sponsorship.invoice?.type === "object"
-    ? sponsorship.invoice?.type?.code
-    : sponsorship.invoice?.type) || "").toLowerCase();
+    // 捐贈不寄發票
+try {
+  const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+  console.log("LINE Pay 發票型態:", invCode);
 
-console.log("[LINE Pay] sponsorship.invoice =>", sponsorship.invoice);
-console.log("[LINE Pay] 最終 invCode =>", invCode);
+  // 成功信一定寄
+  await sendSponsorSuccessEmail(sponsorship);
 
-await sendSponsorSuccessEmail(sponsorship);
-
-if (invCode === "donate") {
-  console.log("[LINE Pay] 捐贈發票，不寄發票信");
-} else {
-  console.log("[LINE Pay] 寄送發票信");
-  await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+  // 如果不是 donate，就寄發票信
+  if (invCode?.toLowerCase() !== "donate") {
+    await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+  } else {
+    console.log("捐贈發票，不寄發票信件");
+  }
+} catch (err) {
+  console.error("寄送通知失敗：", err.message);
 }
 
 
@@ -201,22 +201,22 @@ async function handleClientConfirm(req, res, next) {
       await projectRepo.save(project);
     }
 
-    //  保證不寄發票
-  const invCode =
-  ((typeof sponsorship.invoice?.type === "object"
-    ? sponsorship.invoice?.type?.code
-    : sponsorship.invoice?.type) || "").toLowerCase();
+    //捐贈不寄發票
+  try {
+  const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+  console.log("LINE Pay 發票型態:", invCode);
 
-console.log("[LINE Pay] sponsorship.invoice =>", sponsorship.invoice);
-console.log("[LINE Pay] 最終 invCode =>", invCode);
+  // 成功信一定寄
+  await sendSponsorSuccessEmail(sponsorship);
 
-await sendSponsorSuccessEmail(sponsorship);
-
-if (invCode === "donate") {
-  console.log("[LINE Pay] 捐贈發票，不寄發票信");
-} else {
-  console.log("[LINE Pay] 寄送發票信");
-  await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+  // 如果不是 donate，就寄發票信
+  if (invCode?.toLowerCase() !== "donate") {
+    await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+  } else {
+    console.log("捐贈發票，不寄發票信件");
+  }
+} catch (err) {
+  console.error("寄送通知失敗：", err.message);
 }
 
 
