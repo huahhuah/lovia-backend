@@ -201,17 +201,18 @@ async function handleClientConfirm(req, res, next) {
     }
 
     try {
-      await sendSponsorSuccessEmail(sponsorship);
-    } catch (err) {
-      console.error("寄送成功信失敗:", err.message);
-    }
+      const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
+      console.log("LINE Pay 查詢確認發票型態:", invCode);
 
-    if (sponsorship.invoice) {
-      try {
+      await sendSponsorSuccessEmail(sponsorship);
+
+      if (invCode === "donate") {
+        console.log(" 捐贈發票，不寄發票信");
+      } else {
         await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      } catch (err) {
-        console.error("寄送發票信失敗:", err.message);
       }
+    } catch (err) {
+      console.error("寄送通知失敗:", err.message);
     }
 
     console.log("LINE Pay 付款完成，導回前端結果頁");
