@@ -114,22 +114,24 @@ async function handleLinePayConfirm(req, res, next) {
       await projectRepo.save(project);
     }
 
-    // robust 保證不寄發票
- try {
-      const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
-      console.log(`[LINE Pay] 處理發票，發票型態: ${invCode}`);
+    // 保證不寄發票
+const invCode =
+  ((typeof sponsorship.invoice?.type === "object"
+    ? sponsorship.invoice?.type?.code
+    : sponsorship.invoice?.type) || "").toLowerCase();
 
-      await sendSponsorSuccessEmail(sponsorship);
+console.log("[LINE Pay] sponsorship.invoice =>", sponsorship.invoice);
+console.log("[LINE Pay] 最終 invCode =>", invCode);
 
-      if (invCode === "donate") {
-        console.log("[LINE Pay] 捐贈發票，不寄發票信");
-      } else {
-        console.log("[LINE Pay] 寄送發票信");
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      }
-    } catch (err) {
-      console.error("[LINE Pay] 發票寄送流程錯誤:", err.message);
-    }
+await sendSponsorSuccessEmail(sponsorship);
+
+if (invCode === "donate") {
+  console.log("[LINE Pay] 捐贈發票，不寄發票信");
+} else {
+  console.log("[LINE Pay] 寄送發票信");
+  await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+}
+
 
 
 
@@ -199,22 +201,25 @@ async function handleClientConfirm(req, res, next) {
       await projectRepo.save(project);
     }
 
-    // robust 保證不寄發票
-  try {
-      const invCode = sponsorship.invoice?.type?.code || sponsorship.invoice?.type;
-      console.log(`[LINE Pay] 處理發票，發票型態: ${invCode}`);
+    //  保證不寄發票
+  const invCode =
+  ((typeof sponsorship.invoice?.type === "object"
+    ? sponsorship.invoice?.type?.code
+    : sponsorship.invoice?.type) || "").toLowerCase();
 
-      await sendSponsorSuccessEmail(sponsorship);
+console.log("[LINE Pay] sponsorship.invoice =>", sponsorship.invoice);
+console.log("[LINE Pay] 最終 invCode =>", invCode);
 
-      if (invCode === "donate") {
-        console.log("[LINE Pay] 捐贈發票，不寄發票信");
-      } else {
-        console.log("[LINE Pay] 寄送發票信");
-        await sendInvoiceEmail(sponsorship, sponsorship.invoice);
-      }
-    } catch (err) {
-      console.error("[LINE Pay] 發票寄送流程錯誤:", err.message);
-    }
+await sendSponsorSuccessEmail(sponsorship);
+
+if (invCode === "donate") {
+  console.log("[LINE Pay] 捐贈發票，不寄發票信");
+} else {
+  console.log("[LINE Pay] 寄送發票信");
+  await sendInvoiceEmail(sponsorship, sponsorship.invoice);
+}
+
+
 
 
     console.log("LINE Pay 付款完成，導回前端結果頁");
