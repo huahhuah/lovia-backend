@@ -276,7 +276,8 @@ async function updateProject(req, res, next) {
 
     // 重新判斷 project_type
     project.project_type = getProjectType(project.start_time, project.end_time);
-
+    // 修改後重送
+    project.stauts = 4;
     // 更新 plans
     let newPlans = [];
     if (Array.isArray(plans)) {
@@ -315,7 +316,7 @@ async function updateProject(req, res, next) {
       project_team: updatedProject.project_team,
       faq: updatedProject.faq ? JSON.parse(updatedProject.faq) : [],
       plans: newPlans,
-      status: 4
+      status: updateProject.status
     };
 
     res.status(200).json({
