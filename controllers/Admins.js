@@ -185,7 +185,7 @@ async function getAllProjects(req, res, next) {
 
     const projectRepo = dataSource.getRepository("Projects");
     const [projects, total] = await projectRepo.findAndCount({
-      where: { status: 1 },
+      where: { status: In ([1,4]) },
       skip: (currentPage - 1) * pageSize,
       take: pageSize,
       order: { created_at: "ASC" },

@@ -246,7 +246,8 @@ async function updateProject(req, res, next) {
       full_content,
       project_team,
       faq,
-      plans
+      plans,
+      status
     } = req.body;
 
     // 更新欄位
@@ -313,7 +314,8 @@ async function updateProject(req, res, next) {
       full_content: updatedProject.full_content,
       project_team: updatedProject.project_team,
       faq: updatedProject.faq ? JSON.parse(updatedProject.faq) : [],
-      plans: newPlans
+      plans: newPlans,
+      status: 4
     };
 
     res.status(200).json({
