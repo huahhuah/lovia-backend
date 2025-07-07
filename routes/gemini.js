@@ -5,5 +5,6 @@ const rateLimiter = require("../middlewares/rateLimiter");
 
 const router = express.Router();
 router.post("/", rateLimiter, geminiChat);
+router.post("", rateLimiter, geminiChat); 
 
 module.exports = router;
