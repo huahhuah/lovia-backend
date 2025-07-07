@@ -8,7 +8,6 @@ async function askGemini(userQuestion) {
   const payload = {
     contents: [
       {
-        role: "user",
         parts: [
           {
             text: `你是 Lovia 募資平台的專屬 AI 客服助理，名字叫 Lovia 小助手。
@@ -75,6 +74,7 @@ ${userQuestion}`
 
 async function geminiChat(req, res) {
   try {
+    console.log(" 收到請求 req.body:", req.body);
     const { message } = req.body;
 
     if (!message || typeof message !== "string" || message.trim() === "") {
