@@ -11,7 +11,7 @@ async function updateExpiredProjects() {
       .createQueryBuilder()
       .update()
       .set({ is_finished: true })
-      .where("end_time < NOW() - interval '1 day'")
+      .where("end_time < NOW()::date + interval '1 day'")
       .andWhere("is_finished = false")
       .andWhere("project_type NOT IN ('長期贊助', '歷年專案')")
       .execute();
