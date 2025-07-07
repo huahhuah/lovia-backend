@@ -41,17 +41,8 @@ if (process.env.NODE_ENV === "production") {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        req.body = req.raw.body;
-        return req;
-      }
-    }
-  })
-);
+app.use(pinoHttp({ logger }));
+
 // 靜態檔案（如：公開圖片、logo 等）
 app.use(express.static(path.join(__dirname, "public")));
 
