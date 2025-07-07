@@ -223,10 +223,11 @@ async function updateProject(req, res, next) {
     const user = req.user;
     const projectRepo = dataSource.getRepository("Projects");
     const planRepo = dataSource.getRepository("ProjectPlans");
+    const statusRepo = dataSource.getRepository("ProjectsStatuses");
 
     const project = await projectRepo.findOne({
       where: { id: projectId, user_id: user.id },
-      relations: ["user", "category"]
+      relations: ["user", "category", "projectStatus"]
     });
     if (!project) {
       return next(appError(400, "找不到提案"));
@@ -277,7 +278,12 @@ async function updateProject(req, res, next) {
     // 重新判斷 project_type
     project.project_type = getProjectType(project.start_time, project.end_time);
     // 修改後重送
-    project.stauts = 4;
+    const newStatus = await statusRepo.findOne({
+      where: {id: 4}
+    });
+    if (newStatus){
+      project.projectStatus = newStatus;
+    }
     // 更新 plans
     let newPlans = [];
     if (Array.isArray(plans)) {
@@ -316,7 +322,7 @@ async function updateProject(req, res, next) {
       project_team: updatedProject.project_team,
       faq: updatedProject.faq ? JSON.parse(updatedProject.faq) : [],
       plans: newPlans,
-      status: updateProject.status
+      status: updateProject.projectStatus.id
     };
 
     res.status(200).json({
