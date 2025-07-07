@@ -223,7 +223,7 @@ async function updateProject(req, res, next) {
     const user = req.user;
     const projectRepo = dataSource.getRepository("Projects");
     const planRepo = dataSource.getRepository("ProjectPlans");
-    const statusRepo = dataSource.getRepository("ProjectsStatuses");
+    const statusRepo = dataSource.getRepository("ProjectStatuses");
 
     const project = await projectRepo.findOne({
       where: { id: projectId, user_id: user.id },
@@ -282,7 +282,7 @@ async function updateProject(req, res, next) {
       where: {id: 4}
     });
     if (newStatus){
-      project.projectStatus = newStatus;
+      project.Project_status = newStatus;
     }
     // 更新 plans
     let newPlans = [];
@@ -322,7 +322,7 @@ async function updateProject(req, res, next) {
       project_team: updatedProject.project_team,
       faq: updatedProject.faq ? JSON.parse(updatedProject.faq) : [],
       plans: newPlans,
-      status: updateProject.projectStatus.id
+      status: updatedProject.Project_status.id
     };
 
     res.status(200).json({
