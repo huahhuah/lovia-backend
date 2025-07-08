@@ -14,7 +14,7 @@ const { dataSource } = require("../db/data-source");
 const Sponsorships = require("../entities/Sponsorships");
 const Projects = require("../entities/Projects");
 const { sendSponsorSuccessEmail } = require("../utils/sendSponsorSuccessEmail");
-const { sendInvoiceEmail } = require("../utils/sendInvoiceEmail");
+const { sendReceiptEmail } = require("../utils/sendReceiptEmail");
 const dayjs = require("dayjs");
 const jwt = require("jsonwebtoken");
 
@@ -147,7 +147,6 @@ async function handleEcpayCallback(req, res) {
     Object.assign(order, {
       paid_at: dayjs(PaymentDate, "YYYY/MM/DD HH:mm:ss").toDate(),
       status: "paid",
-      payment_status: "paid",
       payment_method: `綠界 ${PaymentType || "Credit"}`,
       transaction_id: tradeNo,
       payment_result: JSON.stringify(req.body)
@@ -166,19 +165,17 @@ async function handleEcpayCallback(req, res) {
       console.error("專案金額累積失敗:", e);
     }
 
-    // 寄送通知與發票
+    // 寄送通知與收據
     try {
-      const invCode = order.invoice?.type?.code || order.invoice?.type;
+      console.log(`[${nowStr}] 收據寄送 DEBUG:`, {
+        order_uuid: order.order_uuid,
+        invoice: order.invoice
+      });
 
       await sendSponsorSuccessEmail(order);
-
-      if (invCode === "donate") {
-        console.log(`[${nowStr}]  捐贈發票，不寄發票信`);
-      } else {
-        await sendInvoiceEmail(order, order.invoice);
-      }
+      await sendReceiptEmail(order, order.invoice || {});
     } catch (e) {
-      console.error(`[${nowStr}]  寄送信件失敗:`, e);
+      console.error(`[${nowStr}] 寄送收據信失敗:`, e);
     }
 
     // 讓前端帶 token 可以直接載入付款成功資訊
@@ -187,7 +184,7 @@ async function handleEcpayCallback(req, res) {
       const redirectUrl = `${CLIENT_BACK}?orderId=${orderId}&token=${token}`;
       if (!res.headersSent) return res.redirect(redirectUrl);
     } catch (e) {
-      console.error(`[${nowStr}]WT 產生或 redirect 失敗:`, e);
+      console.error(`[${nowStr}] 產生 token 或 redirect 失敗:`, e);
     }
 
     return res.send("1|OK");

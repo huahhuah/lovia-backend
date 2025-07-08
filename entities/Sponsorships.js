@@ -21,6 +21,11 @@ module.exports = new EntitySchema({
       length: 50,
       nullable: true
     },
+    id_number: {
+      type: "varchar",
+      length: 20,
+      nullable: true
+    },
     note: {
       type: "text",
       nullable: true
@@ -41,7 +46,7 @@ module.exports = new EntitySchema({
     },
     created_at: {
       type: "timestamp",
-      createDate: true
+      default: () => "CURRENT_TIMESTAMP"
     },
     paid_at: {
       type: "timestamp",

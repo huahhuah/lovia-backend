@@ -5,7 +5,7 @@ const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("User");
 const generateJWT = require("../utils/generateJWT");
 const { sendResetPasswordEmail } = require("../utils/passwordemail");
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
 const jwtSecret = config.get("secret").jwtSecret;
 const {
   isUndefined,
@@ -22,7 +22,9 @@ const { getRepository } = require("typeorm");
 const { RelationLoader } = require("typeorm/query-builder/RelationLoader.js");
 const { app } = require("firebase-admin");
 const Proposer_statuses = require("../entities/Proposer_statuses");
-const { readerrevenuesubscriptionlinking } = require("googleapis/build/src/apis/readerrevenuesubscriptionlinking");
+const {
+  readerrevenuesubscriptionlinking
+} = require("googleapis/build/src/apis/readerrevenuesubscriptionlinking");
 const auth = require("../middlewares/auth")({
   secret: jwtSecret,
   userRepository: dataSource.getRepository("Users"),
@@ -121,7 +123,7 @@ async function postLogin(req, res, next) {
 
     const userRepository = dataSource.getRepository("Users");
     const existingUser = await userRepository.findOne({
-      select: ["id", "username", "hashed_password", "role", "avatar_url"],  // 加入頭貼
+      select: ["id", "username", "hashed_password", "role", "avatar_url"], // 加入頭貼
       where: { account },
       relations: ["role"]
     });
@@ -140,7 +142,7 @@ async function postLogin(req, res, next) {
         id: existingUser.id,
         role_id: existingUser.role.id,
         role: existingUser.role.role,
-        avatar_url: existingUser.avatar_url  // 加入頭貼
+        avatar_url: existingUser.avatar_url // 加入頭貼
       },
       { expiresIn: "2h" }
     );
@@ -493,14 +495,16 @@ async function sendResetPasswordEmailHandler(req, res, next) {
   }
 }
 
-
 // ✅ 重設密碼：驗證 token 並更新密碼
 async function resetPassword(req, res, next) {
   try {
     const { token } = req.params;
     const { password } = req.body;
 
-    console.log('重設密碼請求:', { token: token?.substring(0, 20) + '...', hasPassword: !!password });
+    console.log("重設密碼請求:", {
+      token: token?.substring(0, 20) + "...",
+      hasPassword: !!password
+    });
 
     if (!password) {
       return next(appError(400, "請提供新密碼"));
@@ -514,64 +518,64 @@ async function resetPassword(req, res, next) {
     let decoded;
     try {
       decoded = jwt.verify(token, jwtSecret);
-      console.log('Token 解碼成功:', { userId: decoded.id, exp: new Date(decoded.exp * 1000) });
+      console.log("Token 解碼成功:", { userId: decoded.id, exp: new Date(decoded.exp * 1000) });
     } catch (err) {
-      console.error('Token 驗證失敗:', err.message);
+      console.error("Token 驗證失敗:", err.message);
       return next(appError(400, "連結已過期或無效"));
     }
 
     const userRepository = dataSource.getRepository("Users");
-    
+
     // 重要：需要明確選擇 hashed_password 欄位，因為它設定了 select: false
-    const user = await userRepository.findOne({ 
+    const user = await userRepository.findOne({
       where: { id: decoded.id },
       select: ["id", "username", "account", "hashed_password"] // 明確選擇需要的欄位
     });
 
     if (!user) {
-      console.error('找不到使用者:', decoded.id);
+      console.error("找不到使用者:", decoded.id);
       return next(appError(404, "找不到使用者"));
     }
 
-    console.log('找到使用者:', { 
-      id: user.id, 
+    console.log("找到使用者:", {
+      id: user.id,
       username: user.username,
       account: user.account,
-      hasCurrentPassword: !!user.hashed_password 
+      hasCurrentPassword: !!user.hashed_password
     });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log('新密碼 hash:', hashedPassword.substring(0, 20) + '...');
+    console.log("新密碼 hash:", hashedPassword.substring(0, 20) + "...");
 
     // 正確的欄位名稱是 hashed_password
     user.hashed_password = hashedPassword;
 
     const savedUser = await userRepository.save(user);
-    console.log('使用者已保存:', { 
+    console.log("使用者已保存:", {
       id: savedUser.id,
       passwordUpdated: !!savedUser.hashed_password
     });
 
     // 驗證密碼是否真的更新了
-    const updatedUser = await userRepository.findOne({ 
+    const updatedUser = await userRepository.findOne({
       where: { id: decoded.id },
       select: ["id", "hashed_password"]
     });
-    
+
     const passwordMatches = updatedUser.hashed_password === hashedPassword;
-    console.log('資料庫驗證 - 密碼已更新:', passwordMatches);
+    console.log("資料庫驗證 - 密碼已更新:", passwordMatches);
 
     if (!passwordMatches) {
-      console.error('警告：密碼更新後驗證失敗');
+      console.error("警告：密碼更新後驗證失敗");
       return next(appError(500, "密碼更新失敗，請稍後再試"));
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: "密碼已成功更新",
-      success: true 
+      success: true
     });
   } catch (err) {
-    console.error('重設密碼發生錯誤:', err);
+    console.error("重設密碼發生錯誤:", err);
     next(err);
   }
 }
@@ -874,32 +878,31 @@ async function getSponsorshipResult(req, res, next) {
 }
 
 // 查詢我追蹤了哪些(我的最愛)
-async function getFollowedProject(req, res, next){
+async function getFollowedProject(req, res, next) {
   try {
     const userId = req.user.id;
     const followRepo = dataSource.getRepository("Follows");
     const allFollows = await followRepo.find({
-      where:{ 
-        user: {id: userId},
+      where: {
+        user: { id: userId },
         follow: true
-        },
-      relations: ['project']
-    })
+      },
+      relations: ["project"]
+    });
 
-    const result = allFollows.map( a=> a.project)
-    console.log(result)
+    const result = allFollows.map(a => a.project);
+    console.log(result);
 
     res.status(200).json({
       status: true,
-      message: '成功查詢我的最愛',
-      result,
-    })
-  } catch (err){
+      message: "成功查詢我的最愛",
+      result
+    });
+  } catch (err) {
     console.error("❌ 查詢收藏失敗:", err);
-    next(appError(500, '查詢失敗', next))
+    next(appError(500, "查詢失敗", next));
   }
 }
-
 
 module.exports = {
   postSignup,

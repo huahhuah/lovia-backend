@@ -3,8 +3,9 @@ const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("Projects");
 const appError = require("../utils/appError");
 const { getProjectType } = require("../utils/projectType");
+const { generateInvoiceNumber } = require("../utils/generateInvoiceNumber");
 const jwt = require("jsonwebtoken");
-const { validateInvoice } = require("../utils/validateInvoice");
+const { validateReceipt, isValidTaiwanID } = require("../utils/validateReceipt");
 const { v4: uuidv4 } = require("uuid");
 const { In } = require("typeorm");
 const Project = require("../entities/Projects");
@@ -868,7 +869,7 @@ async function sponsorProjectPlan(req, res, next) {
   }
 }
 
-// 建立完整訂單資訊：含贊助、發票、寄送資料
+// 建立完整訂單資訊：含贊助、收據、寄送資料 + 產生流水號 invoice_no
 async function createProjectSponsorship(req, res, next) {
   const { project_id, plan_id } = req.params;
   const { sponsorship = {}, invoice = {}, shipping = {} } = req.body;
@@ -898,6 +899,9 @@ async function createProjectSponsorship(req, res, next) {
       return next(appError(400, "贊助金額必須為正整數"));
     }
 
+    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
+
+    // ---------- 先檢查是否有同樣未付款訂單 ----------
     const existing = await sponsorshipRepo.findOne({
       where: {
         user: { id: userId },
@@ -909,9 +913,6 @@ async function createProjectSponsorship(req, res, next) {
       relations: ["invoice", "shipping"]
     });
 
-    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
-
-    // 如果已有訂單但沒有 shipping 或 invoice，補上
     if (existing) {
       if (!existing.shipping) {
         const newShipping = shippingRepo.create({
@@ -925,22 +926,32 @@ async function createProjectSponsorship(req, res, next) {
 
       if (!existing.invoice && invoiceTypeCode) {
         const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
-        if (!invoiceType) return next(appError(400, "發票類型無效"));
+        if (!invoiceType) return next(appError(400, "收據類型無效"));
 
         try {
-          validateInvoice(invoice, invoiceTypeCode);
+          validateReceipt(invoice, invoiceTypeCode);
         } catch (err) {
-          return next(appError(400, err.message || "發票格式錯誤"));
+          return next(appError(400, err.message || "收據資料格式錯誤"));
         }
 
+        // 建立 invoice
         const newInvoice = invoiceRepo.create({
           type: invoiceType,
           carrier_code: invoice.carrier_code?.trim() || null,
           tax_id: invoice.tax_id?.trim() || null,
           title: invoice.title?.trim() || null
         });
-        existing.invoice = await invoiceRepo.save(newInvoice);
+        const savedInvoice = await invoiceRepo.save(newInvoice);
+
+        // 加上流水號
+        savedInvoice.invoice_no = `LV-${String(savedInvoice.id).padStart(6, "0")}`;
+        await invoiceRepo.save(savedInvoice);
+
+        // 設定到 existing
+        existing.invoice = savedInvoice;
       }
+
+      existing.id_number = sponsorship.id_number?.trim() || existing.id_number;
 
       await sponsorshipRepo.save(existing);
 
@@ -950,12 +961,14 @@ async function createProjectSponsorship(req, res, next) {
         data: {
           orderId: existing.order_uuid,
           sponsorshipId: existing.id,
-          amount: existing.amount
+          amount: existing.amount,
+          invoiceNo: existing.invoice?.invoice_no || null,
+          idNumber: existing.id_number || null
         }
       });
     }
 
-    // 建立新 sponsorship
+    // ---------- 建立新的 sponsorship ----------
     const newSponsorship = sponsorshipRepo.create({
       user: { id: userId },
       project,
@@ -965,10 +978,11 @@ async function createProjectSponsorship(req, res, next) {
       order_uuid: uuidv4(),
       display_name: sponsorship.display_name?.trim() || "匿名",
       note: sponsorship.note?.trim() || "",
+      id_number: sponsorship.id_number?.trim() || null,
       status: "pending"
     });
 
-    // 建立 shipping
+    // ---------- 建立 shipping ----------
     const newShipping = shippingRepo.create({
       name: shipping?.name?.trim() || "未提供姓名",
       phone: shipping?.phone?.trim() || "0912345678",
@@ -977,15 +991,15 @@ async function createProjectSponsorship(req, res, next) {
     });
     newSponsorship.shipping = await shippingRepo.save(newShipping);
 
-    // 建立 invoice（如有）
+    // ---------- 建立 invoice + 補流水號 ----------
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
-      if (!invoiceType) return next(appError(400, "發票類型無效"));
+      if (!invoiceType) return next(appError(400, "收據類型無效"));
 
       try {
-        validateInvoice(invoice, invoiceTypeCode);
+        validateReceipt(invoice, invoiceTypeCode);
       } catch (err) {
-        return next(appError(400, err.message || "發票格式錯誤"));
+        return next(appError(400, err.message || "收據資料格式錯誤"));
       }
 
       const newInvoice = invoiceRepo.create({
@@ -994,10 +1008,16 @@ async function createProjectSponsorship(req, res, next) {
         tax_id: invoice.tax_id?.trim() || null,
         title: invoice.title?.trim() || null
       });
-      newSponsorship.invoice = await invoiceRepo.save(newInvoice);
+      const savedInvoice = await invoiceRepo.save(newInvoice);
+
+      // 產生 LV-000001 格式流水號
+      savedInvoice.invoice_no = `LV-${String(savedInvoice.id).padStart(6, "0")}`;
+      await invoiceRepo.save(savedInvoice);
+
+      newSponsorship.invoice = savedInvoice;
     }
 
-    // 最終儲存 sponsorship（含關聯）
+    // ---------- 儲存 sponsorship ----------
     await sponsorshipRepo.save(newSponsorship);
 
     return res.status(200).json({
@@ -1006,7 +1026,9 @@ async function createProjectSponsorship(req, res, next) {
       data: {
         orderId: newSponsorship.order_uuid,
         sponsorshipId: newSponsorship.id,
-        amount: newSponsorship.amount
+        amount: newSponsorship.amount,
+        invoiceNo: newSponsorship.invoice?.invoice_no || null,
+        idNumber: newSponsorship.id_number || null
       }
     });
   } catch (error) {
