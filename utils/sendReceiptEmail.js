@@ -1,4 +1,7 @@
 const { sendEmail } = require("./mailer");
+const { generateInvoiceNumber } = require("./generateInvoiceNumber");
+const { dataSource } = require("../db/data-source"); // 要拿到 repository
+const invoiceRepo = dataSource.getRepository("Invoices");
 
 /**
  * 寄送收據通知 Email
@@ -9,16 +12,20 @@ async function sendReceiptEmail(sponsorship, invoice) {
     return;
   }
 
+  // 自動補上流水號
+  if (!invoice.invoice_no) {
+    console.log(" invoice_no 尚未存在，補上流水號");
+    await generateInvoiceNumber(invoiceRepo, invoice);
+  }
+
   // 收據類型處理
-  const type = invoice.type?.code || invoice.type; // 注意改成 .code
+  const type = invoice?.type?.code || invoice?.type || "unknown";
   let receiptTypeLabel = "收據資訊異常";
 
   if (type === "email") {
     receiptTypeLabel = "電子收據（寄送 Email）";
   } else if (type === "paper") {
-    receiptTypeLabel = invoice.tax_id
-      ? `紙本收據（統一編號：${invoice.tax_id}）`
-      : `個人紙本收據（無統編）`;
+    receiptTypeLabel = "紙本收據（將隨回饋品寄送）";
   }
 
   const issuedAt = new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
@@ -32,7 +39,7 @@ async function sendReceiptEmail(sponsorship, invoice) {
     <p>親愛的贊助者，感謝您支持 Lovia 專案。</p>
 
     <p><strong>收據類型：</strong>${receiptTypeLabel}</p>
-    <p><strong>收據編號：</strong>${invoice.invoice_no || "(尚未開立或尚未串接平台)"}</p>
+     <p><strong>收據編號：</strong>${invoice.invoice_no}</p>
     <p><strong>開立時間：</strong>${issuedAt}</p>
 
     <hr/>
@@ -43,8 +50,8 @@ async function sendReceiptEmail(sponsorship, invoice) {
     <p><strong>專案名稱：</strong>${projectTitle}</p>
 
     <br/>
-    <p>※ 此收據為系統自動開立，如需報帳或紙本請確認您已選擇「紙本收據」。</p>
-    <p>如有疑問，請聯繫客服。</p>
+    <p>※ 若您選擇的是 <strong>紙本收據</strong>，正式收據將隨回饋品一同寄送至您填寫的地址。</p>
+    <p>此信件僅作為收據已開立之通知，如有疑問，請聯繫客服。</p>
     <p>Lovia 募資平台 敬上</p>
   `;
 

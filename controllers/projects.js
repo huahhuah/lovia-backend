@@ -3,6 +3,7 @@ const { dataSource } = require("../db/data-source");
 const logger = require("../utils/logger")("Projects");
 const appError = require("../utils/appError");
 const { getProjectType } = require("../utils/projectType");
+const { generateInvoiceNumber } = require("../utils/generateInvoiceNumber");
 const jwt = require("jsonwebtoken");
 const { validateReceipt, isValidTaiwanID } = require("../utils/validateReceipt");
 const { v4: uuidv4 } = require("uuid");
@@ -868,7 +869,7 @@ async function sponsorProjectPlan(req, res, next) {
   }
 }
 
-// 建立完整訂單資訊：含贊助、收據、寄送資料
+// 建立完整訂單資訊：含贊助、收據、寄送資料 + 產生流水號 invoice_no
 async function createProjectSponsorship(req, res, next) {
   const { project_id, plan_id } = req.params;
   const { sponsorship = {}, invoice = {}, shipping = {} } = req.body;
@@ -898,6 +899,9 @@ async function createProjectSponsorship(req, res, next) {
       return next(appError(400, "贊助金額必須為正整數"));
     }
 
+    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
+
+    // ---------- 先檢查是否有同樣未付款訂單 ----------
     const existing = await sponsorshipRepo.findOne({
       where: {
         user: { id: userId },
@@ -908,8 +912,6 @@ async function createProjectSponsorship(req, res, next) {
       },
       relations: ["invoice", "shipping"]
     });
-
-    const invoiceTypeCode = typeof invoice.type === "string" ? invoice.type.trim() : "";
 
     if (existing) {
       if (!existing.shipping) {
@@ -932,13 +934,18 @@ async function createProjectSponsorship(req, res, next) {
           return next(appError(400, err.message || "收據資料格式錯誤"));
         }
 
+        // 建立 invoice，補流水號
         const newInvoice = invoiceRepo.create({
           type: invoiceType,
           carrier_code: invoice.carrier_code?.trim() || null,
           tax_id: invoice.tax_id?.trim() || null,
           title: invoice.title?.trim() || null
         });
-        existing.invoice = await invoiceRepo.save(newInvoice);
+        const savedInvoice = await invoiceRepo.save(newInvoice);
+        await generateInvoiceNumber(invoiceRepo, savedInvoice);
+        newSponsorship.invoice = savedInvoice;
+
+        existing.invoice = savedInvoice;
       }
 
       await sponsorshipRepo.save(existing);
@@ -950,12 +957,13 @@ async function createProjectSponsorship(req, res, next) {
           orderId: existing.order_uuid,
           sponsorshipId: existing.id,
           amount: existing.amount,
+          invoiceNo: existing.invoice?.invoice_no || null,
           idNumber: existing.id_number || null
         }
       });
     }
 
-    // 建立新 sponsorship
+    // ---------- 建立新的 sponsorship ----------
     const newSponsorship = sponsorshipRepo.create({
       user: { id: userId },
       project,
@@ -969,6 +977,7 @@ async function createProjectSponsorship(req, res, next) {
       status: "pending"
     });
 
+    // ---------- 建立 shipping ----------
     const newShipping = shippingRepo.create({
       name: shipping?.name?.trim() || "未提供姓名",
       phone: shipping?.phone?.trim() || "0912345678",
@@ -977,7 +986,7 @@ async function createProjectSponsorship(req, res, next) {
     });
     newSponsorship.shipping = await shippingRepo.save(newShipping);
 
-    // 建立 invoice（如有）
+    // ---------- 建立 invoice + 補流水號 ----------
     if (invoiceTypeCode) {
       const invoiceType = await invoiceTypeRepo.findOneBy({ code: invoiceTypeCode });
       if (!invoiceType) return next(appError(400, "收據類型無效"));
@@ -994,9 +1003,16 @@ async function createProjectSponsorship(req, res, next) {
         tax_id: invoice.tax_id?.trim() || null,
         title: invoice.title?.trim() || null
       });
-      newSponsorship.invoice = await invoiceRepo.save(newInvoice);
+      const savedInvoice = await invoiceRepo.save(newInvoice);
+
+      // 產生 LV-000001 格式流水號
+      savedInvoice.invoice_no = `LV-${String(savedInvoice.id).padStart(6, "0")}`;
+      await invoiceRepo.save(savedInvoice);
+
+      newSponsorship.invoice = savedInvoice;
     }
 
+    // ---------- 儲存 sponsorship ----------
     await sponsorshipRepo.save(newSponsorship);
 
     return res.status(200).json({
@@ -1006,6 +1022,7 @@ async function createProjectSponsorship(req, res, next) {
         orderId: newSponsorship.order_uuid,
         sponsorshipId: newSponsorship.id,
         amount: newSponsorship.amount,
+        invoiceNo: newSponsorship.invoice?.invoice_no || null,
         idNumber: newSponsorship.id_number || null
       }
     });
