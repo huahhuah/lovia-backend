@@ -1,9 +1,9 @@
 name: Keep Render App Awake
 
 on:
-  workflow_dispatch: # 👉 可手動執行一次，幫你確認沒錯
+  workflow_dispatch:  # 👉 可手動執行一次，幫你確認沒錯
   schedule:
-    - cron: "*/10 1-16 * * *" # 台灣 9:00~23:59（UTC+8 → UTC 1~16）
+    - cron: '*/10 * * * *'  # 台灣 9:00~23:59（UTC+8 → UTC 1~16）
 
 jobs:
   ping:
