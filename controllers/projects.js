@@ -934,7 +934,7 @@ async function createProjectSponsorship(req, res, next) {
           return next(appError(400, err.message || "收據資料格式錯誤"));
         }
 
-        // 建立 invoice，補流水號
+        // 建立 invoice
         const newInvoice = invoiceRepo.create({
           type: invoiceType,
           carrier_code: invoice.carrier_code?.trim() || null,
@@ -942,9 +942,12 @@ async function createProjectSponsorship(req, res, next) {
           title: invoice.title?.trim() || null
         });
         const savedInvoice = await invoiceRepo.save(newInvoice);
-        await generateInvoiceNumber(invoiceRepo, savedInvoice);
-        newSponsorship.invoice = savedInvoice;
 
+        // 加上流水號
+        savedInvoice.invoice_no = `LV-${String(savedInvoice.id).padStart(6, "0")}`;
+        await invoiceRepo.save(savedInvoice);
+
+        // 設定到 existing
         existing.invoice = savedInvoice;
       }
 
