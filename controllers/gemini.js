@@ -47,7 +47,7 @@ async function askGemini(userQuestion) {
     - 可以回覆贊助者的提問。
 
 【其他注意事項】
-- 目前網站暫不提供退款服務，如需協助可透過客服信箱聯絡，我們會盡快為您轉達給提案方。
+- 目前網站暫不提供退款服務，如需協助可透過客服信箱聯絡：loviaworld@gmail.com，我們會盡快為您轉達給提案方。
 - 本平台僅提供募資媒合服務，實際專案出貨內容與時間由提案方負責。
 
 你的任務：
@@ -89,7 +89,7 @@ async function geminiChat(req, res) {
 
     return res.status(200).json({
       status: true,
-      message: geminiAnswer
+      message: `${geminiAnswer}\n\n如需協助也可隨時來信：loviaworld@gmail.com`
     });
   } catch (err) {
     console.error("Gemini 聊天錯誤:", JSON.stringify(err.response?.data || err.message, null, 2));
