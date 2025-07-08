@@ -18,34 +18,35 @@ const geminiRouter = require("./routes/gemini");
 
 const app = express();
 
-//  CORS 設定（允許你的前端）
+//  CORS 設定（完整版）
 const allowedOrigins = [
   "http://localhost:5173",
   "https://lovia-frontend.vercel.app"
 ];
-
 app.use(cors({
   origin: function (origin, callback) {
-    // 沒有 origin (如 Postman) 也允許
+    // Postman 或 curl 沒有 origin，直接允許
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    // 不在白名單
     return callback(new Error("CORS policy: This origin is not allowed"), false);
   },
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // 明確允許的 HTTP 方法
+  allowedHeaders: ['Content-Type', 'Authorization'], // 明確允許的 Headers
+  credentials: true, // 允許帶 cookies
+  optionsSuccessStatus: 200 // 有些舊版瀏覽器對 204 會錯，改用 200
 }));
 
-// 中介軟體設定
+// 中介軟體
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(pinoHttp({ logger }));
 
-// 靜態檔案（如：公開圖片、logo 等）
+// 靜態檔案
 app.use(express.static(path.join(__dirname, "public")));
 
-//  僅 production 執行定時任務
+//  僅在 production 執行定時任務
 if (process.env.NODE_ENV === "production") {
   try {
     const { startUpdateExpiredProjectsJob } = require("./cronJobs/updateExpiredProjects");
@@ -64,7 +65,7 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-// API 路由註冊
+// API 路由
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/uploads", uploadRouter);
@@ -76,12 +77,12 @@ app.use("/api/v1/linepay", linePayRoutes);
 app.use("/api/v1/webhooks", webhookRouter);
 app.use("/api/v1/gemini-chat", geminiRouter);
 
-// 健康檢查（可供監控系統使用）
+// 健康檢查
 app.get("/healthcheck", (req, res) => {
   res.status(200).send("OK");
 });
 
-// 404 handler
+// 404
 app.use((req, res) => {
   res.status(404).json({
     status: "error",
@@ -100,3 +101,4 @@ app.use((err, req, res, _next) => {
 });
 
 module.exports = app;
+
