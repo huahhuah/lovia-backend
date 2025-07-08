@@ -18,7 +18,34 @@ const geminiRouter = require("./routes/gemini");
 
 const app = express();
 
-//  啟動定時任務（僅 production 執行）
+//  CORS 設定（允許你的前端）
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://lovia-frontend.vercel.app"
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // 沒有 origin (如 Postman) 也允許
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // 不在白名單
+    return callback(new Error("CORS policy: This origin is not allowed"), false);
+  },
+  credentials: true
+}));
+
+// 中介軟體設定
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(pinoHttp({ logger }));
+
+// 靜態檔案（如：公開圖片、logo 等）
+app.use(express.static(path.join(__dirname, "public")));
+
+//  僅 production 執行定時任務
 if (process.env.NODE_ENV === "production") {
   try {
     const { startUpdateExpiredProjectsJob } = require("./cronJobs/updateExpiredProjects");
@@ -37,60 +64,35 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-//  Middleware 設定
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(pinoHttp({ logger }));
-
-// 靜態檔案（如：公開圖片、logo 等）
-app.use(express.static(path.join(__dirname, "public")));
-
-// API 路由註冊區
-//  使用者相關（註冊、登入、會員資料）
+// API 路由註冊
 app.use("/api/v1/users", usersRouter);
-//  提案、回饋方案、留言等專案相關
 app.use("/api/v1/projects", projectRouter);
-// 圖片上傳（imgbb、multer）
 app.use("/api/v1/uploads", uploadRouter);
-//管理者後台功能
 app.use("/api/v1/admins", adminsRouter);
-// 訂單與付款請求（統一付款入口）
 app.use("/api/v1/users/orders", ordersRouter);
-// 寄送通知信、發票信
 app.use("/api/v1", emailRoutes);
-// 第三方登入（如 Google OAuth）
 app.use("/api/v1/auth", oauthRoutes);
-// 金流 Webhook / Callback
-//linepay-callback
 app.use("/api/v1/linepay", linePayRoutes);
 app.use("/api/v1/webhooks", webhookRouter);
-//ai客服
 app.use("/api/v1/gemini-chat", geminiRouter);
 
-//  健康檢查（可供監控系統使用）
+// 健康檢查（可供監控系統使用）
 app.get("/healthcheck", (req, res) => {
-  res.status(200);
-  res.send("OK");
+  res.status(200).send("OK");
 });
 
-//找不到路由 → 404
-app.use((req, res, next) => {
+// 404 handler
+app.use((req, res) => {
   res.status(404).json({
     status: "error",
     message: "無此路由"
   });
-  return;
 });
 
-// 全域錯誤處理:放在所有路由之後，統一處理錯誤
+// 全域錯誤處理
 app.use((err, req, res, _next) => {
-  if (!err) {
-    err = new Error("未知錯誤");
-  }
   req.log.error(err.message || "No error message");
-
-  const statusCode = err.status || 500; // 400, 409, 500 ...
+  const statusCode = err.status || 500;
   res.status(statusCode).json({
     status: statusCode === 500 ? "error" : "failed",
     message: err.message || "伺服器錯誤"
