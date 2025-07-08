@@ -951,6 +951,8 @@ async function createProjectSponsorship(req, res, next) {
         existing.invoice = savedInvoice;
       }
 
+      existing.id_number = sponsorship.id_number?.trim() || existing.id_number;
+
       await sponsorshipRepo.save(existing);
 
       return res.status(200).json({

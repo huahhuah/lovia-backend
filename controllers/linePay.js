@@ -76,8 +76,9 @@ async function handleLinePayConfirm(req, res, next) {
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
     const sponsorship = await sponsorshipRepo.findOne({
       where: { order_uuid: orderId },
-      relations: ["user", "invoice", "project", "shipping"]
+      relations: ["user", "invoice", "invoice.type", "project", "shipping"]
     });
+
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
     if (sponsorship.status === "paid" && sponsorship.transaction_id === transactionId) {
@@ -154,8 +155,9 @@ async function handleClientConfirm(req, res, next) {
     const sponsorshipRepo = dataSource.getRepository("Sponsorships");
     const sponsorship = await sponsorshipRepo.findOne({
       where: { order_uuid: orderId },
-      relations: ["user", "invoice", "project", "shipping"]
+      relations: ["user", "invoice", "invoice.type", "project", "shipping"]
     });
+
     if (!sponsorship) return next(appError(404, "找不到對應訂單"));
 
     const token = jwt.sign({ id: sponsorship.user.id }, jwtSecret, { expiresIn: "1h" });

@@ -263,12 +263,12 @@ async function getPublicPaymentResult(req, res) {
     const repo = dataSource.getRepository("Sponsorships");
     const order = await repo.findOne({
       where: { order_uuid: orderId },
-      relations: ["user", "invoice", "project", "shipping", "invoice.type"]
+      relations: ["user", "invoice", "invoice.type", "project", "shipping"]
     });
 
     if (!order) return res.status(404).json({ success: false, message: "找不到訂單" });
 
-    // 補上 ATM fallback 判斷
+    // 補 ATM fallback
     let paymentMethod = order.payment_method;
     if (
       !paymentMethod &&
@@ -286,26 +286,26 @@ async function getPublicPaymentResult(req, res) {
         transactionId: order.transaction_id,
         amount: order.amount,
         paidAt: order.paid_at,
-        paymentMethod: order.payment_method,
+        paymentMethod,
         status: order.status,
         // 贊助者資訊
         display_name: order.display_name || order.user?.name || "匿名",
         email: order.user?.account || "",
-        // 收件人資訊
+        idNumber: order.id_number || "", // 加上身份證號
+
+        // 收件資訊
         recipient: order.shipping?.name || "",
         phone: order.shipping?.phone || "",
         address: order.shipping?.address || "",
-        note: order.note,
+        note: order.note || "",
+
+        // 收據資訊
+        receiptType: order.invoice?.type?.code || "", // 改為 code 對應 'email' / 'paper'
+
         // ATM 付款資訊
         bank_code: order.atm_bank_code || "",
         v_account: order.atm_payment_no || "",
-        expire_date: order.atm_expire_date || "",
-
-        //發票資訊
-        invoice_type: order.invoice?.type?.name || "", //發票類型（如：捐贈、個人、公司）
-        donate_name: order.invoice?.donate_name || "", // 發票開立對象（若有填寫）
-        mobile_barcode: order.invoice?.mobile_barcode || "", // 手機條碼
-        company_uniform_number: order.invoice?.uniform_number || "" // 公司統編
+        expire_date: order.atm_expire_date || ""
       }
     });
   } catch (err) {
