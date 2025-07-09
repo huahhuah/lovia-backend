@@ -1,18 +1,16 @@
 name: Keep Render App Awake
 
 on:
-  workflow_dispatch:  # 👉 手動執行（在 GitHub Actions 介面可以點 Run）
+  workflow_dispatch:
   schedule:
-    # 👉 設定排程為台灣時間 09:00 ~ 22:59，每 10 分鐘執行一次
-    # UTC+8 → UTC 時間是 1~14 點
-    - cron: '*/10 1-14 * * *'
+    - cron: '*/10 * * * *'  # ✅ 每 10 分鐘執行一次（全天）
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Call Render backend and show HTTP status
+      - name: Call /healthcheck endpoint and show HTTP status
         run: |
-          echo "Calling https://lovia-backend-xl4e.onrender.com/ at $(date -u)"
-          status=$(curl -s -o /dev/null -w "%{http_code}" https://lovia-backend-xl4e.onrender.com/)
+          echo "Calling https://lovia-backend-xl4e.onrender.com/healthcheck at $(date -u)"
+          status=$(curl -s -o /dev/null -w "%{http_code}" https://lovia-backend-xl4e.onrender.com/healthcheck)
           echo "HTTP Status: $status"
