@@ -172,45 +172,43 @@ async function getMySponsorships(req, res) {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const includeRelations = req.query.include
-      ? req.query.include
-          .split(",")
-          .filter(rel => ["project", "plan", "shipping", "invoice"].includes(rel))
-      : ["project", "plan"];
-
     const repo = dataSource.getRepository(Sponsorships);
     const queryBuilder = repo
       .createQueryBuilder("sponsorship")
+      .leftJoinAndSelect("sponsorship.project", "project")
+      .leftJoinAndSelect("project.category", "category")
+      .leftJoinAndSelect("sponsorship.plan", "plan")
+      .leftJoinAndSelect("sponsorship.shipping", "shipping")
       .where("sponsorship.user_id = :userId", { userId })
       .andWhere("sponsorship.status = :status", { status: "paid" })
       .orderBy("sponsorship.created_at", "DESC")
       .skip(skip)
       .take(limit);
 
-    includeRelations.forEach(relation => {
-      queryBuilder.leftJoinAndSelect(`sponsorship.${relation}`, relation);
-    });
-
     const [sponsorships, total] = await Promise.all([
       queryBuilder.getMany(),
       repo.count({ where: { user: { id: userId }, status: "paid" } })
     ]);
 
+    console.log("DB sponsorships:", JSON.stringify(sponsorships, null, 2));
     const sanitized = sponsorships.map(s => ({
       id: s.id,
       order_uuid: s.order_uuid,
       transaction_id: s.transaction_id,
       amount: s.amount,
       status: s.status,
-      payment_method: s.payment_method,
+      payment_method: s.payment_method || "",
       created_at: s.created_at,
       updated_at: s.updated_at,
+      recipient: s.shipping?.name || "",
+      phone: s.shipping?.phone || "",
+      address: s.shipping?.address || "",
+      note: s.shipping?.note || "",
       project: s.project
         ? {
             id: s.project.id,
             title: s.project.title,
-            image: s.project.image,
-            status: s.project.status
+            category_name: s.project.category ? s.project.category.name : "其他"
           }
         : null,
       plan: s.plan
@@ -220,16 +218,10 @@ async function getMySponsorships(req, res) {
             amount: s.plan.amount,
             description: s.plan.description
           }
-        : null,
-      shipping: s.shipping || null,
-      invoice: s.invoice
-        ? {
-            id: s.invoice.id,
-            invoice_number: s.invoice.invoice_number,
-            created_at: s.invoice.created_at
-          }
         : null
     }));
+
+    console.log("Sanitized sponsorships:", JSON.stringify(sanitized, null, 2));
 
     return res.json({
       success: true,
