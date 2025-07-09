@@ -839,7 +839,7 @@ async function me(req, res, next) {
   }
 }
 
-// 取得贊助結果詳細資訊
+// 取得贊助結果詳細資訊 (需要登入)
 async function getSponsorshipResult(req, res, next) {
   const { order_uuid } = req.params;
   const userId = req.user?.id;
@@ -851,7 +851,15 @@ async function getSponsorshipResult(req, res, next) {
         order_uuid,
         user: { id: userId }
       },
-      relations: ["user", "shipping", "invoice", "project", "plan"]
+      relations: [
+        "user",
+        "shipping",
+        "invoice",
+        "invoice.type",
+        "project",
+        "project.category",
+        "plan"
+      ]
     });
 
     if (!sponsorship) return next(appError(404, "找不到對應的贊助紀錄"));
@@ -865,10 +873,47 @@ async function getSponsorshipResult(req, res, next) {
         payment_method: sponsorship.payment_method,
         status: sponsorship.status,
         display_name: sponsorship.display_name,
-        email: sponsorship.user.account,
-        note: sponsorship.note,
+        email: sponsorship.user?.account || "",
+        note: sponsorship.note || "",
+        // 專案資訊
+        project: sponsorship.project
+          ? {
+              id: sponsorship.project.id,
+              title: sponsorship.project.title,
+              category: sponsorship.project.category
+                ? {
+                    id: sponsorship.project.category.id,
+                    name: sponsorship.project.category.name
+                  }
+                : null
+            }
+          : null,
+        // 贊助方案資訊
+        plan: sponsorship.plan
+          ? {
+              id: sponsorship.plan.id,
+              plan_name: sponsorship.plan.plan_name,
+              amount: sponsorship.plan.amount,
+              description: sponsorship.plan.description
+            }
+          : null,
+        // 收件資訊
         shipping: sponsorship.shipping || {},
-        invoice: sponsorship.invoice || {}
+        // 發票資訊
+        invoice: sponsorship.invoice
+          ? {
+              id: sponsorship.invoice.id,
+              invoice_number: sponsorship.invoice.invoice_number,
+              created_at: sponsorship.invoice.created_at,
+              type: sponsorship.invoice.type
+                ? {
+                    id: sponsorship.invoice.type.id,
+                    code: sponsorship.invoice.type.code,
+                    description: sponsorship.invoice.type.description
+                  }
+                : null
+            }
+          : null
       }
     });
   } catch (err) {
@@ -899,7 +944,7 @@ async function getFollowedProject(req, res, next) {
       result
     });
   } catch (err) {
-    console.error("❌ 查詢收藏失敗:", err);
+    console.error(" 查詢收藏失敗:", err);
     next(appError(500, "查詢失敗", next));
   }
 }
