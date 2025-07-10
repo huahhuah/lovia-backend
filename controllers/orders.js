@@ -173,6 +173,8 @@ async function getMySponsorships(req, res) {
     const skip = (page - 1) * limit;
 
     const repo = dataSource.getRepository(Sponsorships);
+    const statuses = ["paid", "pending"]; // 不包含 completed
+
     const queryBuilder = repo
       .createQueryBuilder("sponsorship")
       .leftJoinAndSelect("sponsorship.project", "project")
@@ -180,17 +182,21 @@ async function getMySponsorships(req, res) {
       .leftJoinAndSelect("sponsorship.plan", "plan")
       .leftJoinAndSelect("sponsorship.shipping", "shipping")
       .where("sponsorship.user_id = :userId", { userId })
-      .andWhere("sponsorship.status = :status", { status: "paid" })
+      .andWhere("sponsorship.status IN (:...statuses)", { statuses })
       .orderBy("sponsorship.created_at", "DESC")
       .skip(skip)
       .take(limit);
 
     const [sponsorships, total] = await Promise.all([
       queryBuilder.getMany(),
-      repo.count({ where: { user: { id: userId }, status: "paid" } })
+      repo.count({
+        where: {
+          user: { id: userId },
+          status: In(statuses)
+        }
+      })
     ]);
 
-    console.log("DB sponsorships:", JSON.stringify(sponsorships, null, 2));
     const sanitized = sponsorships.map(s => ({
       id: s.id,
       order_uuid: s.order_uuid,
@@ -220,8 +226,6 @@ async function getMySponsorships(req, res) {
           }
         : null
     }));
-
-    console.log("Sanitized sponsorships:", JSON.stringify(sanitized, null, 2));
 
     return res.json({
       success: true,
