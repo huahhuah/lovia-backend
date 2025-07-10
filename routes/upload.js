@@ -1,7 +1,5 @@
 const express = require("express");
 const multer = require("multer");
-const express = require("express");
-const multer = require("multer");
 const uploadImg = require("../services/uploadImg");
 const appError = require("../utils/appError");
 const router = express.Router();
@@ -20,7 +18,6 @@ router.post('/image', upload.single('file'), async (req, res, next) => {
     if (!req.file?.buffer) {
       return next(appError(400, '未上傳檔案'));
     }
-    // 呼叫服務，將 buffer 上傳到 imgbb
     const result = await uploadImg(req.file.buffer, IMGBB_API_KEY);
 
     res.json({
@@ -41,4 +38,5 @@ router.post('/image', upload.single('file'), async (req, res, next) => {
 });
 
 module.exports = router;
+
 
