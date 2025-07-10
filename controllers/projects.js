@@ -76,7 +76,7 @@ async function createProject(req, res, next) {
       cover,
       full_content,
       project_team,
-      faq,
+      faq: JSON.stringify(faq || []), 
       user,
       project_type,
       is_finished: false,
