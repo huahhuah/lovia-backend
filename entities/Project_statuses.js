@@ -1,4 +1,4 @@
-// 提案審查:defaul 1 (1-審查中、2-提案通過、3-提案駁回)
+// 提案審查:defaul 1 (1-審查中、2-提案通過、3-提案駁回、4-提案重送)
 const { EntitySchema } = require("typeorm");
 
 module.exports = new EntitySchema({
