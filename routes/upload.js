@@ -34,9 +34,6 @@ router.post('/image', upload.single('file'), async (req, res, next) =>{
             return next(appError(400, '檔案大小不能超過 2MB'));
         }
         next(error);
-
-    }
-    next(error);
   }
 );
 
